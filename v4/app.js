@@ -6,7 +6,7 @@ import {Document,Packer,Paragraph,TextRun,HeadingLevel,ImageRun,PageBreak,Alignm
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs';
 
 const $=id=>document.getElementById(id);
-const E={shell:$('shell'),pdfInput:$('pdfInput'),emptyPdf:$('emptyPdf'),backupInput:$('backupInput'),status:$('status'),title:$('title'),filename:$('filename'),stage:$('stage'),stageInner:$('stageInner'),empty:$('empty'),pageWrap:$('pageWrap'),pdfCanvas:$('pdfCanvas'),inkCanvas:$('inkCanvas'),pinLayer:$('pinLayer'),page:$('page'),total:$('total'),pLabel:$('pLabel'),prev:$('prev'),next:$('next'),fit:$('fit'),inkColor:$('inkColor'),thin:$('thin'),thick:$('thick'),undo:$('undo'),redo:$('redo'),editor:$('editor'),chars:$('chars'),time:$('time'),mic:$('mic'),transcript:$('transcript'),transcriptChars:$('transcriptChars'),pinList:$('pinList'),docx:$('docx'),printBtn:$('printBtn'),md:$('md'),json:$('json'),toast:$('toast'),printArea:$('printArea'),layoutToggle:$('layoutToggle'),inputBadge:$('inputBadge'),viewCount:$('viewCount'),mdInput:$('mdInput'),mdFilename:$('mdFilename'),mdRendered:$('mdRendered'),mdModeRendered:$('mdModeRendered'),mdModeRaw:$('mdModeRaw'),pinPopover:$('pinPopover'),pinText:$('pinText'),pinSave:$('pinSave'),pinCancel:$('pinCancel')};
+const E={shell:$('shell'),pdfInput:$('pdfInput'),emptyPdf:$('emptyPdf'),backupInput:$('backupInput'),status:$('status'),title:$('title'),filename:$('filename'),stage:$('stage'),stageInner:$('stageInner'),empty:$('empty'),pageWrap:$('pageWrap'),pdfCanvas:$('pdfCanvas'),inkCanvas:$('inkCanvas'),pinLayer:$('pinLayer'),page:$('page'),total:$('total'),pLabel:$('pLabel'),prev:$('prev'),next:$('next'),fit:$('fit'),inkColor:$('inkColor'),thin:$('thin'),thick:$('thick'),undo:$('undo'),redo:$('redo'),editor:$('editor'),chars:$('chars'),time:$('time'),mic:$('mic'),transcript:$('transcript'),transcriptChars:$('transcriptChars'),pinList:$('pinList'),docx:$('docx'),printBtn:$('printBtn'),md:$('md'),json:$('json'),toast:$('toast'),printArea:$('printArea'),layoutToggle:$('layoutToggle'),inputBadge:$('inputBadge'),viewCount:$('viewCount'),mdInput:$('mdInput'),mdFilename:$('mdFilename'),mdRendered:$('mdRendered'),mdModeRendered:$('mdModeRendered'),mdModeRaw:$('mdModeRaw'),mdBold:$('mdBold'),mdExam:$('mdExam'),mdHighlight:$('mdHighlight'),pinPopover:$('pinPopover'),pinText:$('pinText'),pinSave:$('pinSave'),pinCancel:$('pinCancel')};
 
 const mdTurndown=new TurndownService({headingStyle:'atx',bulletListMarker:'-',codeBlockStyle:'fenced',emDelimiter:'*',strongDelimiter:'**'});
 mdTurndown.use(gfm);
@@ -292,6 +292,49 @@ async function importMarkdownFile(file){
   toast(`MD 전사문 ${count}페이지 불러옴 · 수업 필기 유지${ignored?` · ${ignored}페이지 제외`:''}`);
 }
 E.mdInput.onchange=async e=>{const f=e.target.files?.[0];if(!f)return;try{await importMarkdownFile(f)}catch(err){console.error(err);toast('MD 파일을 읽지 못했습니다')}finally{e.target.value=''}};
+
+let savedMdRange=null;
+function saveMdSelection(){
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount||sel.isCollapsed)return;
+  const r=sel.getRangeAt(0),node=r.commonAncestorContainer.nodeType===1?r.commonAncestorContainer:r.commonAncestorContainer.parentElement;
+  if(node&&E.mdRendered.contains(node))savedMdRange=r.cloneRange();
+}
+function restoreMdSelection(){
+  if(!savedMdRange)return null;
+  const sel=window.getSelection();
+  sel.removeAllRanges();sel.addRange(savedMdRange.cloneRange());
+  return sel.getRangeAt(0);
+}
+function notifyRenderedChanged(){
+  E.mdRendered.dispatchEvent(new Event('input',{bubbles:true}));
+  saveMdSelection();
+}
+function applyMdInlineFormat(kind){
+  if(mdViewMode!=='rendered'){setMdViewMode('rendered');toast('결과 편집에서 텍스트를 선택해주세요');return}
+  const r=restoreMdSelection();
+  if(!r||r.collapsed){toast('먼저 적용할 글자를 선택해주세요');return}
+  const sel=window.getSelection();
+  if(kind==='bold'){
+    document.execCommand('bold',false,null);
+    saveMdSelection();notifyRenderedChanged();return;
+  }
+  const tag=kind==='exam'?'exam':'mark';
+  const wrapper=document.createElement(tag);
+  try{
+    const frag=r.extractContents();wrapper.appendChild(frag);r.insertNode(wrapper);
+    const nr=document.createRange();nr.selectNodeContents(wrapper);sel.removeAllRanges();sel.addRange(nr);savedMdRange=nr.cloneRange();
+    notifyRenderedChanged();
+  }catch(e){console.error(e);toast('이 선택 영역은 나눠서 적용해주세요')}
+}
+document.addEventListener('selectionchange',saveMdSelection);
+[E.mdBold,E.mdExam,E.mdHighlight].forEach(b=>{
+  b.addEventListener('pointerdown',e=>e.preventDefault());
+  b.addEventListener('mousedown',e=>e.preventDefault());
+});
+E.mdBold.onclick=()=>applyMdInlineFormat('bold');
+E.mdExam.onclick=()=>applyMdInlineFormat('exam');
+E.mdHighlight.onclick=()=>applyMdInlineFormat('highlight');
 
 E.mdModeRendered.onclick=()=>setMdViewMode('rendered');
 E.mdModeRaw.onclick=()=>setMdViewMode('raw');

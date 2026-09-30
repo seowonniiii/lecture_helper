@@ -28,7 +28,7 @@
       <section class="notePane transcriptPane">
         <div class="paneHead">
           <div><b>📄 .md / 전사문</b><small id="mdFilename">페이지별 전사문 · 수정 가능</small></div>
-          <div class="paneActions"><label class="btn mdload">MD 불러오기<input id="mdInput" type="file" accept=".md,text/markdown,text/plain" hidden></label><div class="mdmode"><button id="mdModeRendered" class="tool active" type="button">결과 편집</button><button id="mdModeRaw" class="tool" type="button">원문</button></div><button id="mic" class="btn micbtn">🎤 시작</button></div>
+          <div class="paneActions"><label class="btn mdload">MD 불러오기<input id="mdInput" type="file" accept=".md,text/markdown,text/plain" hidden></label><div class="mdmode"><button id="mdModeRendered" class="tool active" type="button">결과 편집</button><button id="mdModeRaw" class="tool" type="button">원문</button></div><div class="mdformat"><button id="mdBold" class="tool fmt-bold" type="button" title="선택 영역 굵게"><b>B</b></button><button id="mdExam" class="tool fmt-exam" type="button" title="선택 영역 시험강조">시험</button><button id="mdHighlight" class="tool fmt-highlight" type="button" title="선택 영역 하이라이트">형광</button></div><button id="mic" class="btn micbtn">🎤 시작</button></div>
         </div>
         <div class="mdEditorStack">
           <div id="mdRendered" class="mdRendered markdown-body" contenteditable="true" spellcheck="false" data-placeholder="MD를 불러오면 실제 출력 형태로 보면서 바로 수정할 수 있습니다."></div>
