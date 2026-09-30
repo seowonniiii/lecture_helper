@@ -6,6 +6,7 @@ import PDFKit
 import PencilKit
 
 extension Notification.Name {
+    static let lectureHelperNoteEditingBegan = Notification.Name("LectureHelperNoteEditingBegan")
     static let lectureHelperPencilBegan = Notification.Name("LectureHelperPencilBegan")
 }
 
@@ -60,7 +61,7 @@ final class LectureStore: ObservableObject {
         currentPage += 1
     }
 
-    func noteBindingText(for page: Int) -> String {
+    func noteText(for page: Int) -> String {
         notes[page] ?? ""
     }
 
@@ -143,6 +144,92 @@ final class LectureStore: ObservableObject {
     }
 }
 
+// UIKit UITextView를 직접 사용해 Bluetooth / Magic Keyboard 입력을 안정적으로 받음.
+struct NativeNoteEditor: UIViewRepresentable {
+    @Binding var text: String
+    @Binding var isEditing: Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, isEditing: $isEditing)
+    }
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.delegate = context.coordinator
+        view.font = UIFont.preferredFont(forTextStyle: .body)
+        view.adjustsFontForContentSizeCategory = true
+        view.backgroundColor = UIColor.secondarySystemBackground
+        view.textColor = UIColor.label
+        view.isEditable = true
+        view.isSelectable = true
+        view.isScrollEnabled = true
+        view.keyboardDismissMode = .none
+        view.textContainerInset = UIEdgeInsets(top: 10, left: 9, bottom: 10, right: 9)
+        view.layer.cornerRadius = 10
+        view.layer.borderWidth = 1
+        view.layer.borderColor = UIColor.separator.cgColor
+        view.text = text
+        return view
+    }
+
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        context.coordinator.updateBindings(text: $text, isEditing: $isEditing)
+
+        if uiView.text != text {
+            let selected = uiView.selectedRange
+            uiView.text = text
+            if selected.location <= uiView.text.utf16.count {
+                uiView.selectedRange = selected
+            }
+        }
+
+        uiView.layer.borderColor = isEditing
+            ? UIColor.tintColor.cgColor
+            : UIColor.separator.cgColor
+
+        if isEditing && !uiView.isFirstResponder {
+            DispatchQueue.main.async {
+                if self.isEditing && !uiView.isFirstResponder {
+                    NotificationCenter.default.post(name: .lectureHelperNoteEditingBegan, object: nil)
+                    uiView.becomeFirstResponder()
+                }
+            }
+        } else if !isEditing && uiView.isFirstResponder {
+            uiView.resignFirstResponder()
+        }
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        private var text: Binding<String>
+        private var isEditing: Binding<Bool>
+
+        init(text: Binding<String>, isEditing: Binding<Bool>) {
+            self.text = text
+            self.isEditing = isEditing
+        }
+
+        func updateBindings(text: Binding<String>, isEditing: Binding<Bool>) {
+            self.text = text
+            self.isEditing = isEditing
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            if !isEditing.wrappedValue {
+                isEditing.wrappedValue = true
+            }
+            NotificationCenter.default.post(name: .lectureHelperNoteEditingBegan, object: nil)
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            text.wrappedValue = textView.text
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            isEditing.wrappedValue = false
+        }
+    }
+}
+
 struct PDFPencilCanvas: UIViewRepresentable {
     @ObservedObject var store: LectureStore
     var noteEditing: Bool
@@ -161,7 +248,6 @@ struct PDFPencilCanvas: UIViewRepresentable {
 
         let pageIndex = store.currentPage
         let documentID = store.fileURL?.path ?? ""
-
         uiView.show(
             page: page,
             pageIndex: pageIndex,
@@ -187,6 +273,7 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
     private var didSetInitialZoom = false
     private var drawingChanged: ((PKDrawing) -> Void)?
     private var noteEditing = false
+    private var noteObserver: NSObjectProtocol?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -197,8 +284,6 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
         scrollView.showsVerticalScrollIndicator = true
         scrollView.showsHorizontalScrollIndicator = true
         scrollView.bouncesZoom = true
-        scrollView.alwaysBounceVertical = false
-        scrollView.alwaysBounceHorizontal = false
         scrollView.delaysContentTouches = false
         scrollView.panGestureRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
         scrollView.pinchGestureRecognizer?.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
@@ -221,17 +306,27 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
         contentView.addSubview(canvasView)
 
         toolPicker.addObserver(canvasView)
+
+        noteObserver = NotificationCenter.default.addObserver(
+            forName: .lectureHelperNoteEditingBegan,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.noteEditing = true
+            self.toolPicker.setVisible(false, forFirstResponder: self.canvasView)
+            self.canvasView.resignFirstResponder()
+        }
+    }
+
+    deinit {
+        if let noteObserver {
+            NotificationCenter.default.removeObserver(noteObserver)
+        }
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        if window != nil && !noteEditing {
-            activatePencilTools()
-        }
     }
 
     override func layoutSubviews() {
@@ -242,15 +337,13 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
     }
 
     func setNoteEditing(_ editing: Bool) {
-        guard noteEditing != editing else { return }
         noteEditing = editing
-
         if editing {
-            canvasView.resignFirstResponder()
             toolPicker.setVisible(false, forFirstResponder: canvasView)
-        } else if window != nil {
-            activatePencilTools()
+            canvasView.resignFirstResponder()
         }
+        // 중요: editing이 false가 되어도 여기서 PencilKit을 자동 활성화하지 않음.
+        // 실제 Apple Pencil이 캔버스를 터치할 때만 활성화함.
     }
 
     func show(
@@ -281,25 +374,15 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
         setNeedsLayout()
         layoutIfNeeded()
         updateZoomScalesIfNeeded(force: true)
-
-        if !noteEditing {
-            activatePencilTools()
-        }
+        // 페이지를 보여줄 때 first responder를 강제로 가져가지 않음.
     }
 
     @objc private func pencilGestureChanged(_ gesture: UIGestureRecognizer) {
         guard gesture.state == .began else { return }
 
-        if noteEditing {
-            noteEditing = false
-            NotificationCenter.default.post(name: .lectureHelperPencilBegan, object: nil)
-        }
+        noteEditing = false
+        NotificationCenter.default.post(name: .lectureHelperPencilBegan, object: nil)
 
-        activatePencilTools()
-    }
-
-    private func activatePencilTools() {
-        guard window != nil, !noteEditing else { return }
         if !canvasView.isFirstResponder {
             canvasView.becomeFirstResponder()
         }
@@ -370,7 +453,7 @@ struct ContentView: View {
     @State private var showingImporter = false
     @State private var notesAtBottom = false
     @State private var importError: String?
-    @FocusState private var noteEditorFocused: Bool
+    @State private var noteEditing = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -425,14 +508,14 @@ struct ContentView: View {
             Text(importError ?? "알 수 없는 오류")
         }
         .onReceive(NotificationCenter.default.publisher(for: .lectureHelperPencilBegan)) { _ in
-            noteEditorFocused = false
+            noteEditing = false
         }
     }
 
     private var topBar: some View {
         HStack(spacing: 12) {
             Button {
-                noteEditorFocused = false
+                noteEditing = false
                 showingImporter = true
             } label: {
                 Label("PDF 열기", systemImage: "doc.badge.plus")
@@ -442,7 +525,7 @@ struct ContentView: View {
             Spacer()
 
             Button {
-                noteEditorFocused = false
+                noteEditing = false
                 store.goPrevious()
             } label: {
                 Image(systemName: "chevron.left")
@@ -455,7 +538,7 @@ struct ContentView: View {
                 .frame(minWidth: 90)
 
             Button {
-                noteEditorFocused = false
+                noteEditing = false
                 store.goNext()
             } label: {
                 Image(systemName: "chevron.right")
@@ -466,7 +549,7 @@ struct ContentView: View {
             Spacer()
 
             Button {
-                noteEditorFocused = false
+                noteEditing = false
                 withAnimation(.easeInOut(duration: 0.18)) {
                     notesAtBottom.toggle()
                 }
@@ -485,7 +568,7 @@ struct ContentView: View {
 
     private var lecturePane: some View {
         VStack(spacing: 0) {
-            PDFPencilCanvas(store: store, noteEditing: noteEditorFocused)
+            PDFPencilCanvas(store: store, noteEditing: noteEditing)
                 .background(Color(uiColor: .systemGray6))
 
             Text(store.fileName)
@@ -514,13 +597,12 @@ struct ContentView: View {
                 Spacer()
 
                 Button {
-                    noteEditorFocused = true
+                    noteEditing = true
                 } label: {
                     Image(systemName: "keyboard")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
-                .help("노트 입력")
 
                 Text("자동저장")
                     .font(.caption2)
@@ -536,23 +618,16 @@ struct ContentView: View {
                 }
             }
 
-            TextEditor(text: Binding(
-                get: { store.noteBindingText(for: store.currentPage) },
-                set: { store.setNote($0, for: store.currentPage) }
-            ))
-            .focused($noteEditorFocused)
-            .font(.body)
-            .padding(6)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .scrollContentBackground(.hidden)
-            .background(Color(uiColor: .secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(noteEditorFocused ? Color.accentColor.opacity(0.7) : Color.secondary.opacity(0.2), lineWidth: 1)
+            NativeNoteEditor(
+                text: Binding(
+                    get: { store.noteText(for: store.currentPage) },
+                    set: { store.setNote($0, for: store.currentPage) }
+                ),
+                isEditing: $noteEditing
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            Text(noteEditorFocused ? "⌨️ 노트 입력 중" : "✏️ Apple Pencil 필기 가능")
+            Text(noteEditing ? "⌨️ 노트 입력 중" : "✏️ Apple Pencil 필기 가능")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -563,7 +638,7 @@ struct ContentView: View {
     private func tagButton(_ title: String, text: String, tint: Color) -> some View {
         Button(title) {
             store.appendTag(text, to: store.currentPage)
-            noteEditorFocused = true
+            noteEditing = true
         }
         .buttonStyle(.bordered)
         .tint(tint)
