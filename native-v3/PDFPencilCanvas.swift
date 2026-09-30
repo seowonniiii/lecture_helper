@@ -3,6 +3,10 @@ import UIKit
 import PDFKit
 import PencilKit
 
+extension Notification.Name {
+    static let lectureHelperNoteEditingBegan = Notification.Name("LectureHelperNoteEditingBegan")
+}
+
 struct PDFPencilCanvas: UIViewRepresentable {
     @ObservedObject var store: LectureStore
 
@@ -42,6 +46,7 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
     private var pageSize: CGSize = .zero
     private var didSetInitialZoom = false
     private var drawingChanged: ((PKDrawing) -> Void)?
+    private var noteObserver: NSObjectProtocol?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -56,7 +61,7 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
         scrollView.alwaysBounceHorizontal = false
         scrollView.delaysContentTouches = false
 
-        // Fingers pan/zoom the PDF. Apple Pencil never drives the scroll view.
+        // Fingers pan/zoom the PDF. Apple Pencil is reserved for ink.
         scrollView.panGestureRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
         scrollView.pinchGestureRecognizer?.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
 
@@ -74,9 +79,26 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
         canvasView.isScrollEnabled = false
         canvasView.delegate = self
         canvasView.drawingGestureRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
+        canvasView.drawingGestureRecognizer.addTarget(self, action: #selector(pencilGestureChanged(_:)))
         contentView.addSubview(canvasView)
 
         toolPicker.addObserver(canvasView)
+
+        noteObserver = NotificationCenter.default.addObserver(
+            forName: .lectureHelperNoteEditingBegan,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.canvasView.resignFirstResponder()
+            self.toolPicker.setVisible(false, forFirstResponder: self.canvasView)
+        }
+    }
+
+    deinit {
+        if let noteObserver {
+            NotificationCenter.default.removeObserver(noteObserver)
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -86,8 +108,7 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
     override func didMoveToWindow() {
         super.didMoveToWindow()
         guard window != nil else { return }
-        toolPicker.setVisible(true, forFirstResponder: canvasView)
-        canvasView.becomeFirstResponder()
+        activatePencilTools()
     }
 
     override func layoutSubviews() {
@@ -124,9 +145,20 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
         setNeedsLayout()
         layoutIfNeeded()
         updateZoomScalesIfNeeded(force: true)
+        activatePencilTools()
+    }
 
+    @objc private func pencilGestureChanged(_ gesture: UIGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        activatePencilTools()
+    }
+
+    private func activatePencilTools() {
+        guard window != nil else { return }
+        if !canvasView.isFirstResponder {
+            canvasView.becomeFirstResponder()
+        }
         toolPicker.setVisible(true, forFirstResponder: canvasView)
-        canvasView.becomeFirstResponder()
     }
 
     private func render(page: PDFPage, bounds box: CGRect) -> UIImage {
@@ -184,6 +216,9 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
     }
 
     func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+        if !canvasView.isFirstResponder {
+            activatePencilTools()
+        }
         drawingChanged?(canvasView.drawing)
     }
 }
