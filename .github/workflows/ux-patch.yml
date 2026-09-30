@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/ux-patch.yml
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,93 +15,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch V1 and V2
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          COMMON_CSS = r'''
-/* UX patch: top page navigation, bottom filename, switchable notes panel */
-.viewer{display:flex!important;flex-direction:column!important;min-width:0}
-.viewer>.toolbar{flex:0 0 auto}.viewer>.pdfstage,.viewer>.stage{flex:1 1 auto;min-height:0}.viewer>.filebar{flex:0 0 auto}
-.toolbar .nav{order:-20;flex:0 0 100%;width:100%;border:0!important;background:transparent!important;padding:0!important;min-height:38px}
-.filebar{min-height:28px;padding:6px 12px;background:#f8f9fa;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center}
-.filebar .file{max-width:92vw;text-align:center}
-.layout-toggle{white-space:nowrap}
-.shell.notes-bottom{height:auto!important;min-height:calc(100vh - 62px);grid-template-columns:1fr!important;grid-template-rows:minmax(62vh,1fr) auto!important}
-.shell.notes-bottom .notes{border-left:0!important;border-top:1px solid var(--border)!important;min-height:340px;max-height:none}
-.shell.notes-bottom .viewer{min-height:62vh}
-@media(max-width:900px){.layout-toggle{display:inline-flex}.shell.notes-bottom{grid-template-rows:minmax(58vh,1fr) auto!important}}
-'''
-
-          def inject_common(path, version):
-              p=Path(path)
-              s=p.read_text(encoding='utf-8')
-              marker='/* UX patch: top page navigation, bottom filename, switchable notes panel */'
-              if marker not in s:
-                  s=s.replace('</style>', COMMON_CSS+'\n</style>', 1)
-              js=f'''
-// UX patch {version}
-{{
-  const shell=document.querySelector('.shell');
-  const viewer=document.querySelector('.viewer');
-  const toolbar=document.querySelector('.toolbar');
-  const nav=document.querySelector('.nav');
-  if(toolbar&&nav&&!toolbar.contains(nav)) toolbar.prepend(nav);
-  if(viewer&&E.filename&&!document.querySelector('.filebar')){{
-    const filebar=document.createElement('div');filebar.className='filebar';filebar.appendChild(E.filename);viewer.appendChild(filebar);
-  }}
-  const layoutKey='lecture-helper-{version.lower()}-notes-layout';
-  const layoutBtn=document.createElement('button');layoutBtn.type='button';layoutBtn.className='btn layout-toggle';
-  const applyLayout=()=>{{const bottom=localStorage.getItem(layoutKey)==='bottom';shell?.classList.toggle('notes-bottom',bottom);layoutBtn.textContent=bottom?'▥ 코멘트 오른쪽':'▤ 코멘트 하단';}};
-  layoutBtn.onclick=()=>{{localStorage.setItem(layoutKey,shell?.classList.contains('notes-bottom')?'right':'bottom');applyLayout();if(pdfDoc){{fit=true;{ 'render()' if version=='V1' else 'renderPdf()' }}}}};
-  toolbar?.appendChild(layoutBtn);applyLayout();
-}}
-'''
-              end='</script>'
-              token=f'// UX patch {version}'
-              if token not in s:
-                  s=s.replace(end, js+'\n'+end, 1)
-              p.write_text(s,encoding='utf-8')
-
-          inject_common('v1/index.html','V1')
-          inject_common('v2/index.html','V2')
-
-          # V1: tap left/right edge of slide to navigate.
-          p=Path('v1/index.html'); s=p.read_text(encoding='utf-8')
-          token='// V1 edge tap navigation'
-          if token not in s:
-              js=r'''
-// V1 edge tap navigation
-let v1EdgeStart=null;
-E.canvas.addEventListener('pointerdown',ev=>{const r=E.canvas.getBoundingClientRect();v1EdgeStart={x:ev.clientX,y:ev.clientY,t:Date.now(),rx:(ev.clientX-r.left)/r.width};});
-E.canvas.addEventListener('pointerup',ev=>{if(!v1EdgeStart||!pdfDoc)return;const d=Math.hypot(ev.clientX-v1EdgeStart.x,ev.clientY-v1EdgeStart.y),dt=Date.now()-v1EdgeStart.t,x=v1EdgeStart.rx;v1EdgeStart=null;if(d>14||dt>550)return;if(x<.18)go(currentPage-1);else if(x>.82)go(currentPage+1);});
-'''
-              s=s.replace('</script>',js+'\n</script>',1)
-          p.write_text(s,encoding='utf-8')
-
-          # V2: finger scroll/tap navigation; Apple Pencil only for ink.
-          p=Path('v2/index.html'); s=p.read_text(encoding='utf-8')
-          s=s.replace('.ink{position:absolute;left:0;top:0;touch-action:none}', '.ink{position:absolute;left:0;top:0;touch-action:auto}', 1)
-          old="E.inkCanvas.addEventListener('pointerdown',async ev=>{if(tool==='pin'){"
-          new="E.inkCanvas.addEventListener('pointerdown',async ev=>{if(ev.pointerType!=='pen'){v2FingerStart={x:ev.clientX,y:ev.clientY,t:Date.now()};return}if(tool==='pin'){"
-          if old in s: s=s.replace(old,new,1)
-          token='// V2 Apple Pencil only + finger edge navigation'
-          if token not in s:
-              js=r'''
-// V2 Apple Pencil only + finger edge navigation
-let v2FingerStart=null;
-E.inkCanvas.addEventListener('pointerup',ev=>{if(ev.pointerType==='pen'||!v2FingerStart||!pdfDoc)return;const r=E.inkCanvas.getBoundingClientRect();const d=Math.hypot(ev.clientX-v2FingerStart.x,ev.clientY-v2FingerStart.y),dt=Date.now()-v2FingerStart.t,x=(ev.clientX-r.left)/r.width;v2FingerStart=null;if(d>14||dt>550)return;if(x<.18)go(currentPage-1);else if(x>.82)go(currentPage+1);},{passive:true});
-E.inkCanvas.addEventListener('pointercancel',ev=>{if(ev.pointerType!=='pen')v2FingerStart=null;},{passive:true});
-'''
-              s=s.replace('</script>',js+'\n</script>',1)
-          s=s.replace('Apple Pencil·손가락·마우스로 필기하고 페이지별 코멘트와 핀을 함께 저장할 수 있어요.','Apple Pencil로 필기하고, 손가락은 스크롤·페이지 이동에 사용할 수 있어요.',1)
-          p.write_text(s,encoding='utf-8')
-          PY
+      - name: Apply UX patch
+        run: python tools/ux_patch.py
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add v1/index.html v2/index.html
-          git commit -m "Improve page navigation and Pencil input UX"
-          git push
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Improve page navigation and Pencil input UX"
+            git push
+          fi
