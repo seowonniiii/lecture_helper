@@ -9,6 +9,7 @@ let db,pdfDoc=null,project=null,currentPage=1,scale=1.15,fit=true,renderTask=nul
 let stylusPointerId=null,stylusDrawing=false,currentStroke=null,lastStylusPoint=null;
 let touchState={mode:null,startTime:0,startX:0,startY:0,lastX:0,lastY:0,moved:false,initialDistance:0,initialScale:1,midX:0,midY:0};
 let penPointerSeenUntil=0,renderGeneration=0;
+let lastHighlighterEndAt=0;
 const DB='lecture-helper-v4',PS='projects',NS='notes',AS='annotations',LAST='lh-v4-last';
 
 function toast(t){E.toast.textContent=t;E.toast.classList.add('show');setTimeout(()=>E.toast.classList.remove('show'),1500)}
@@ -102,9 +103,47 @@ function beginStylus(clientX,clientY,pressure,id='touch-stylus'){
   stylusDrawing=true;stylusPointerId=id;currentStroke={id:`s-${Date.now()}-${Math.random().toString(36).slice(2)}`,tool,color:E.inkColor.value,width:tool==='highlight'?18:lineWidth,points:[pagePointFromClient(clientX,clientY,pressure)]};lastStylusPoint=currentStroke.points[0];
 }
 function continueStylus(clientX,clientY,pressure){if(!stylusDrawing)return;const pt=pagePointFromClient(clientX,clientY,pressure);if(tool==='erase'){eraseAt(pt);return}if(!currentStroke)return;const dx=pt.x-(lastStylusPoint?.x??pt.x),dy=pt.y-(lastStylusPoint?.y??pt.y);if(dx*dx+dy*dy<0.0000004)return;currentStroke.points.push(pt);lastStylusPoint=pt;drawLiveSegment(currentStroke)}
-function endStylus(){if(!stylusDrawing)return;stylusDrawing=false;stylusPointerId=null;if(currentStroke?.points?.length){pageData.strokes.push(currentStroke);pageData.redo=[];currentStroke=null;lastStylusPoint=null;drawAllStrokes();scheduleSave()}else currentStroke=null}
+function endStylus(){
+  if(!stylusDrawing)return;
+  stylusDrawing=false;stylusPointerId=null;
+  if(currentStroke?.points?.length){
+    if(currentStroke.tool==='highlight'){
+      const prev=pageData.strokes[pageData.strokes.length-1];
+      const a=prev?.points?.[prev.points.length-1],b=currentStroke.points[0];
+      const close=!!a&&!!b&&Math.hypot(a.x-b.x,a.y-b.y)<.015;
+      const soon=performance.now()-lastHighlighterEndAt<180;
+      if(prev?.tool==='highlight'&&prev.color===currentStroke.color&&close&&soon){
+        prev.points.push(...currentStroke.points);
+      }else{
+        pageData.strokes.push(currentStroke);
+      }
+      lastHighlighterEndAt=performance.now();
+    }else{
+      pageData.strokes.push(currentStroke);
+    }
+    pageData.redo=[];currentStroke=null;lastStylusPoint=null;drawAllStrokes();scheduleSave();
+  }else currentStroke=null;
+}
 
-function handlePenPointerDown(e){if(e.pointerType!=='pen'||!project)return;penPointerSeenUntil=performance.now()+1200;e.preventDefault();e.stopPropagation();try{E.inkCanvas.setPointerCapture(e.pointerId)}catch{}beginStylus(e.clientX,e.clientY,pointerPressure(e),e.pointerId)}
+async function addPinAt(clientX,clientY){
+  if(!project||tool!=='pin')return;
+  const pt=pagePointFromClient(clientX,clientY,1);
+  const text=prompt('이 위치에 남길 코멘트');
+  if(!text?.trim())return;
+  pageData.pins.push({id:`p-${Date.now()}`,x:pt.x,y:pt.y,text:text.trim(),time:nowTime()});
+  renderPins();
+  await saveAnnotation();
+  E.status.textContent=`핀 저장됨 · ${nowTime()}`;
+}
+
+
+function handlePenPointerDown(e){
+  if(e.pointerType!=='pen'||!project)return;
+  penPointerSeenUntil=performance.now()+1200;e.preventDefault();e.stopPropagation();
+  if(tool==='pin'){addPinAt(e.clientX,e.clientY);return;}
+  try{E.inkCanvas.setPointerCapture(e.pointerId)}catch{}
+  beginStylus(e.clientX,e.clientY,pointerPressure(e),e.pointerId);
+}
 function handlePenPointerMove(e){if(e.pointerType!=='pen'||e.pointerId!==stylusPointerId)return;e.preventDefault();const events=typeof e.getCoalescedEvents==='function'?e.getCoalescedEvents():[e];for(const ce of events)continueStylus(ce.clientX,ce.clientY,pointerPressure(ce))}
 function handlePenPointerEnd(e){if(e.pointerType!=='pen'||e.pointerId!==stylusPointerId)return;e.preventDefault();endStylus()}
 E.inkCanvas.addEventListener('pointerdown',handlePenPointerDown,{passive:false});E.inkCanvas.addEventListener('pointermove',handlePenPointerMove,{passive:false});E.inkCanvas.addEventListener('pointerup',handlePenPointerEnd,{passive:false});E.inkCanvas.addEventListener('pointercancel',handlePenPointerEnd,{passive:false});
@@ -123,12 +162,21 @@ function onTouchMove(e){
 let scaleRenderTimer=null;function requestScaleRender(){clearTimeout(scaleRenderTimer);scaleRenderTimer=setTimeout(()=>renderPage(),70)}
 function onTouchEnd(e){
   const stylusEnded=[...e.changedTouches].find(isStylusTouch);if(stylusEnded&&stylusDrawing&&String(stylusPointerId).startsWith('stylus-')){e.preventDefault();endStylus();return}
-  const remaining=getFingerTouches(e);if(remaining.length>=2)return;e.preventDefault();if(touchState.mode==='pan'&&!touchState.moved&&performance.now()-touchState.startTime<360&&project){const r=E.inkCanvas.getBoundingClientRect(),x=(touchState.startX-r.left)/r.width;if(x<.12)goPage(currentPage-1);else if(x>.88)goPage(currentPage+1)}E.pageWrap.classList.remove('touching-edge');touchState.mode=null
+  const remaining=getFingerTouches(e);if(remaining.length>=2)return;
+  e.preventDefault();
+  if(touchState.mode==='pan'&&!touchState.moved&&performance.now()-touchState.startTime<360&&project){
+    if(tool==='pin') addPinAt(touchState.startX,touchState.startY);
+    else{
+      const r=E.inkCanvas.getBoundingClientRect(),x=(touchState.startX-r.left)/r.width;
+      if(x<.12)goPage(currentPage-1);else if(x>.88)goPage(currentPage+1);
+    }
+  }
+  E.pageWrap.classList.remove('touching-edge');touchState.mode=null;
 }
 E.pageWrap.addEventListener('touchstart',onTouchStart,{passive:false});E.pageWrap.addEventListener('touchmove',onTouchMove,{passive:false});E.pageWrap.addEventListener('touchend',onTouchEnd,{passive:false});E.pageWrap.addEventListener('touchcancel',onTouchEnd,{passive:false});
 
-E.inkCanvas.addEventListener('click',e=>{if(!project||tool!=='pin')return;const pt=pagePointFromClient(e.clientX,e.clientY,1);const text=prompt('이 위치에 남길 코멘트');if(!text)return;pageData.pins.push({id:`p-${Date.now()}`,x:pt.x,y:pt.y,text,time:nowTime()});renderPins();scheduleSave()});
-function renderPins(){E.pinLayer.innerHTML='';E.pinList.innerHTML='';for(const p of pageData.pins){const b=document.createElement('button');b.className='pin';b.textContent='📌';b.style.left=`${p.x*100}%`;b.style.top=`${p.y*100}%`;b.title=p.text;b.onclick=()=>toast(p.text);E.pinLayer.appendChild(b);const row=document.createElement('div');row.className='pitem';row.innerHTML=`<span><b>${p.time||''}</b> ${escapeHtml(p.text)}</span><button data-id="${p.id}">삭제</button>`;row.querySelector('button').onclick=()=>{pageData.pins=pageData.pins.filter(x=>x.id!==p.id);renderPins();scheduleSave()};E.pinList.appendChild(row)}}
+E.inkCanvas.addEventListener('click',e=>{if(!project||tool!=='pin')return;addPinAt(e.clientX,e.clientY)});
+function renderPins(){E.pinLayer.innerHTML='';E.pinList.innerHTML='';for(const p of pageData.pins){const b=document.createElement('button');b.className='pin';b.textContent='📌';b.style.left=`${p.x*100}%`;b.style.top=`${p.y*100}%`;b.title=p.text;b.onpointerdown=e=>e.stopPropagation();b.onclick=e=>{e.stopPropagation();toast(p.text)};E.pinLayer.appendChild(b);const row=document.createElement('div');row.className='pitem';row.innerHTML=`<span><b>${p.time||''}</b> ${escapeHtml(p.text)}</span><button data-id="${p.id}">삭제</button>`;row.querySelector('button').onclick=()=>{pageData.pins=pageData.pins.filter(x=>x.id!==p.id);renderPins();scheduleSave()};E.pinList.appendChild(row)}}
 function escapeHtml(s=''){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
 async function goPage(p){if(!pdfDoc)return;await saveNote();await saveAnnotation();currentPage=clamp(p,1,pdfDoc.numPages);await saveProject();await renderPage();E.stage.scrollTo(0,0)}
@@ -144,7 +192,25 @@ E.layoutToggle.onclick=()=>{E.shell.classList.toggle('notes-bottom');const botto
 function setupMic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){E.mic.disabled=true;E.mic.title='이 브라우저는 음성입력을 지원하지 않습니다';return}recognition=new SR();recognition.lang='ko-KR';recognition.continuous=true;recognition.interimResults=false;recognition.onresult=e=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)t+=e.results[i][0].transcript+' ';if(t)insertText(t)};recognition.onend=()=>{listening=false;E.mic.textContent='🎤'};E.mic.onclick=()=>{if(listening){recognition.stop();return}try{recognition.start();listening=true;E.mic.textContent='⏹'}catch{}}}
 
 async function composePageImage(pageNo,renderScale=1.7){const page=await pdfDoc.getPage(pageNo),vp=page.getViewport({scale:renderScale});const c=document.createElement('canvas');c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);const ctx=c.getContext('2d');await page.render({canvasContext:ctx,viewport:vp}).promise;const a=await get(AS,`${project.id}:${pageNo}`);for(const s of a?.strokes||[]){const fake={...s,points:s.points.map(p=>({x:p.x*c.width,y:p.y*c.height,p:p.p}))};drawStrokeToContext(ctx,fake,renderScale)}return c}
-function drawStrokeToContext(ctx,stroke,renderScale=1){const pts=stroke.points||[];if(!pts.length)return;ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.globalCompositeOperation=stroke.tool==='highlight'?'multiply':'source-over';ctx.strokeStyle=stroke.color||'#e11d48';ctx.globalAlpha=stroke.tool==='highlight'?.28:1;const base=(stroke.width||2.2)*renderScale;if(pts.length===1){ctx.beginPath();ctx.fillStyle=ctx.strokeStyle;ctx.arc(pts[0].x,pts[0].y,base/2,0,Math.PI*2);ctx.fill();ctx.restore();return}for(let i=0;i<pts.length-1;i++){const a=pts[Math.max(0,i-1)],b=pts[i],c=pts[i+1],st={x:(a.x+b.x)/2,y:(a.y+b.y)/2},en={x:(b.x+c.x)/2,y:(b.y+c.y)/2};ctx.beginPath();ctx.moveTo(st.x,st.y);ctx.quadraticCurveTo(b.x,b.y,en.x,en.y);ctx.lineWidth=stroke.tool==='highlight'?base*3.2:base*(.45+.9*((b.p+c.p)/2||.5));ctx.stroke()}ctx.restore()}
+function drawStrokeToContext(ctx,stroke,renderScale=1){
+  const pts=stroke.points||[];if(!pts.length)return;
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=stroke.color||'#e11d48';
+  if(stroke.tool==='highlight'){
+    ctx.globalCompositeOperation='source-over';ctx.globalAlpha=.25;ctx.lineWidth=18*renderScale;
+    if(pts.length===1){ctx.beginPath();ctx.fillStyle=ctx.strokeStyle;ctx.arc(pts[0].x,pts[0].y,9*renderScale,0,Math.PI*2);ctx.fill();ctx.restore();return;}
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+    for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
+    ctx.stroke();ctx.restore();return;
+  }
+  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+  const base=(stroke.width||2.2)*renderScale;
+  if(pts.length===1){ctx.beginPath();ctx.fillStyle=ctx.strokeStyle;ctx.arc(pts[0].x,pts[0].y,base/2,0,Math.PI*2);ctx.fill();ctx.restore();return;}
+  for(let i=0;i<pts.length-1;i++){
+    const a=pts[Math.max(0,i-1)],b=pts[i],c=pts[i+1],st={x:(a.x+b.x)/2,y:(a.y+b.y)/2},en={x:(b.x+c.x)/2,y:(b.y+c.y)/2};
+    ctx.beginPath();ctx.moveTo(st.x,st.y);ctx.quadraticCurveTo(b.x,b.y,en.x,en.y);ctx.lineWidth=base*(.45+.9*((b.p+c.p)/2||.5));ctx.stroke();
+  }
+  ctx.restore();
+}
 function dataUrlToUint8(dataUrl){const b=atob(dataUrl.split(',')[1]),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
 function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
 
