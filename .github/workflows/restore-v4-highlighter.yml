@@ -1,4 +1,4 @@
-name: Restore V4 highlighter
+name: Patch Lecture Helper V4
 
 on:
   push:
@@ -16,12 +16,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Restore V2-style highlighter in V4
+      - name: Apply V4 patch
         run: python tools/restore_v4_highlighter.py
       - name: Commit patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add v4/app.js
-          git diff --cached --quiet || git commit -m "Restore V2-style highlighter in V4"
+          git add v4/app.js v4/index.html v4/styles.css
+          git diff --cached --quiet || git commit -m "Improve Lecture Helper V4 workflow"
           git push
