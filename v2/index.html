@@ -17,6 +17,15 @@
 .shell.notes-bottom .viewer{min-height:62vh}
 @media(max-width:900px){.layout-toggle{display:inline-flex}.shell.notes-bottom{grid-template-rows:minmax(58vh,1fr) auto!important}}
 
+
+/* iPad Pencil selection suppression */
+.pagewrap,.pagewrap *{
+  -webkit-user-select:none!important;
+  user-select:none!important;
+  -webkit-touch-callout:none!important;
+}
+.pagewrap canvas{-webkit-tap-highlight-color:transparent!important;}
+
 </style>
 </head>
 <body>
@@ -125,6 +134,13 @@ E.inkCanvas.addEventListener('pointerup',ev=>{
 E.inkCanvas.addEventListener('pointercancel',ev=>{
   if(!isStylusPointer(ev))v2FingerStart=null;
 },{passive:true});
+
+
+// iPad Pencil selection suppression
+for(const type of ['selectstart','dragstart']){
+  E.pageWrap.addEventListener(type,e=>e.preventDefault());
+}
+E.pageWrap.addEventListener('contextmenu',e=>e.preventDefault());
 
 </script>
 </body></html>
