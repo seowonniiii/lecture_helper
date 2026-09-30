@@ -3,14 +3,14 @@ import {Document,Packer,Paragraph,TextRun,HeadingLevel,ImageRun,PageBreak,Alignm
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs';
 
 const $=id=>document.getElementById(id);
-const E={shell:$('shell'),pdfInput:$('pdfInput'),emptyPdf:$('emptyPdf'),backupInput:$('backupInput'),status:$('status'),title:$('title'),filename:$('filename'),stage:$('stage'),stageInner:$('stageInner'),empty:$('empty'),pageWrap:$('pageWrap'),pdfCanvas:$('pdfCanvas'),inkCanvas:$('inkCanvas'),pinLayer:$('pinLayer'),page:$('page'),total:$('total'),pLabel:$('pLabel'),prev:$('prev'),next:$('next'),fit:$('fit'),inkColor:$('inkColor'),thin:$('thin'),thick:$('thick'),undo:$('undo'),redo:$('redo'),editor:$('editor'),chars:$('chars'),time:$('time'),mic:$('mic'),pinList:$('pinList'),docx:$('docx'),printBtn:$('printBtn'),md:$('md'),json:$('json'),toast:$('toast'),printArea:$('printArea'),layoutToggle:$('layoutToggle'),inputBadge:$('inputBadge')};
+const E={shell:$('shell'),pdfInput:$('pdfInput'),emptyPdf:$('emptyPdf'),backupInput:$('backupInput'),status:$('status'),title:$('title'),filename:$('filename'),stage:$('stage'),stageInner:$('stageInner'),empty:$('empty'),pageWrap:$('pageWrap'),pdfCanvas:$('pdfCanvas'),inkCanvas:$('inkCanvas'),pinLayer:$('pinLayer'),page:$('page'),total:$('total'),pLabel:$('pLabel'),prev:$('prev'),next:$('next'),fit:$('fit'),inkColor:$('inkColor'),thin:$('thin'),thick:$('thick'),undo:$('undo'),redo:$('redo'),editor:$('editor'),chars:$('chars'),time:$('time'),mic:$('mic'),transcript:$('transcript'),transcriptChars:$('transcriptChars'),pinList:$('pinList'),docx:$('docx'),printBtn:$('printBtn'),md:$('md'),json:$('json'),toast:$('toast'),printArea:$('printArea'),layoutToggle:$('layoutToggle'),inputBadge:$('inputBadge'),viewCount:$('viewCount'),pinPopover:$('pinPopover'),pinText:$('pinText'),pinSave:$('pinSave'),pinCancel:$('pinCancel')};
 
-let db,pdfDoc=null,project=null,currentPage=1,scale=1.15,fit=true,renderTask=null,tool='pen',pageData={strokes:[],redo:[],pins:[]},saveTimer=null,recognition=null,listening=false,lineWidth=2.2;
+let db,pdfDoc=null,project=null,currentPage=1,scale=1.15,fit=true,renderTask=null,tool='pen',pageData={strokes:[],redo:[],pins:[]},saveTimer=null,recognition=null,listening=false,lineWidth=2.2,viewCount=Math.max(1,Math.min(4,Number(localStorage.getItem('lh-v4-view-count'))||1)),pendingPin=null;
 let stylusPointerId=null,stylusDrawing=false,currentStroke=null,lastStylusPoint=null;
 let touchState={mode:null,startTime:0,startX:0,startY:0,lastX:0,lastY:0,moved:false,initialDistance:0,initialScale:1,midX:0,midY:0};
 let penPointerSeenUntil=0,renderGeneration=0;
 let lastHighlighterEndAt=0;
-const DB='lecture-helper-v4',PS='projects',NS='notes',AS='annotations',LAST='lh-v4-last';
+const DB='lecture-helper-v4',PS='projects',NS='notes',AS='annotations',TS='transcripts',LAST='lh-v4-last';
 
 function toast(t){E.toast.textContent=t;E.toast.classList.add('show');setTimeout(()=>E.toast.classList.remove('show'),1500)}
 function nowTime(){return new Intl.DateTimeFormat('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date())}
@@ -22,15 +22,16 @@ function pointerPressure(e){const p=Number(e.pressure);return p>0?clamp(p,.08,1)
 function touchPressure(t){const p=Number(t.force);return p>0?clamp(p,.08,1):.5}
 function isStylusTouch(t){return !!t && (t.touchType==='stylus'||t.touchType==='pencil')}
 
-async function openDb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(PS))d.createObjectStore(PS,{keyPath:'id'});if(!d.objectStoreNames.contains(NS)){const s=d.createObjectStore(NS,{keyPath:'key'});s.createIndex('projectId','projectId')}if(!d.objectStoreNames.contains(AS)){const s=d.createObjectStore(AS,{keyPath:'key'});s.createIndex('projectId','projectId')}};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function openDb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB,2);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(PS))d.createObjectStore(PS,{keyPath:'id'});if(!d.objectStoreNames.contains(NS)){const s=d.createObjectStore(NS,{keyPath:'key'});s.createIndex('projectId','projectId')}if(!d.objectStoreNames.contains(AS)){const s=d.createObjectStore(AS,{keyPath:'key'});s.createIndex('projectId','projectId')}if(!d.objectStoreNames.contains(TS)){const s=d.createObjectStore(TS,{keyPath:'key'});s.createIndex('projectId','projectId')}};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
 async function put(store,obj){const tx=db.transaction(store,'readwrite');tx.objectStore(store).put(obj);await done(tx)}
 async function get(store,key){const tx=db.transaction(store);const x=await req(tx.objectStore(store).get(key));await done(tx);return x}
 async function getByProject(store,id){const tx=db.transaction(store);const x=await req(tx.objectStore(store).index('projectId').getAll(IDBKeyRange.only(id)));await done(tx);return x.sort((a,b)=>a.page-b.page)}
 function noteKey(p){return `${project.id}:${p}`}
 async function saveProject(){if(!project)return;project.title=E.title.value||project.title;project.page=currentPage;project.updated=Date.now();await put(PS,project);localStorage.setItem(LAST,project.id)}
 async function saveNote(){if(!project)return;await put(NS,{key:noteKey(currentPage),projectId:project.id,page:currentPage,text:E.editor.value,updated:Date.now()});E.chars.textContent=`${E.editor.value.length}자`}
+async function saveTranscript(){if(!project)return;await put(TS,{key:noteKey(currentPage),projectId:project.id,page:currentPage,text:E.transcript.value,updated:Date.now()});E.transcriptChars.textContent=`${E.transcript.value.length}자`}
 async function saveAnnotation(){if(!project)return;await put(AS,{key:noteKey(currentPage),projectId:project.id,page:currentPage,strokes:pageData.strokes,pins:pageData.pins,updated:Date.now()})}
-function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(async()=>{await Promise.all([saveProject(),saveNote(),saveAnnotation()]);E.status.textContent=`저장됨 · ${nowTime()}`},250)}
+function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(async()=>{await Promise.all([saveProject(),saveNote(),saveTranscript(),saveAnnotation()]);E.status.textContent=`저장됨 · ${nowTime()}`},250)}
 
 async function loadPdfFile(file){
   try{
@@ -45,14 +46,15 @@ async function restoreLast(){
   try{const id=localStorage.getItem(LAST);if(!id)return;const p=await get(PS,id);if(!p||!p.pdfBlob)return;project=p;const buf=await p.pdfBlob.arrayBuffer();pdfDoc=await pdfjsLib.getDocument({data:buf}).promise;currentPage=clamp(p.page||1,1,pdfDoc.numPages);E.title.value=p.title||'';E.filename.textContent=p.filename||'';E.total.textContent=pdfDoc.numPages;E.empty.classList.add('hidden');E.pageWrap.classList.remove('hidden');E.status.textContent=`복원됨 · ${pdfDoc.numPages}페이지`;await renderPage()}catch(e){console.warn('restore failed',e)}
 }
 
-function fitScale(viewport){const w=Math.max(280,E.stage.clientWidth-36),h=Math.max(280,E.stage.clientHeight-36);return Math.min(w/viewport.width,h/viewport.height,2.2)}
+function fitScale(viewport){const cols=viewCount===1?1:2,rows=viewCount<=2?1:2,gap=viewCount===1?0:12;const w=Math.max(180,(E.stage.clientWidth-36-gap*(cols-1))/cols),h=Math.max(180,(E.stage.clientHeight-36-gap*(rows-1))/rows);return Math.min(w/viewport.width,h/viewport.height,2.2)}
 async function renderPage(){
   if(!pdfDoc)return;const gen=++renderGeneration;currentPage=clamp(currentPage,1,pdfDoc.numPages);E.page.value=currentPage;E.pLabel.textContent=currentPage;E.total.textContent=pdfDoc.numPages;
   const page=await pdfDoc.getPage(currentPage);const base=page.getViewport({scale:1});if(fit)scale=fitScale(base);const vp=page.getViewport({scale});
   const dpr=Math.min(window.devicePixelRatio||1,2.5);const pc=E.pdfCanvas,ic=E.inkCanvas;pc.width=Math.round(vp.width*dpr);pc.height=Math.round(vp.height*dpr);pc.style.width=`${vp.width}px`;pc.style.height=`${vp.height}px`;ic.width=Math.round(vp.width*dpr);ic.height=Math.round(vp.height*dpr);ic.style.width=`${vp.width}px`;ic.style.height=`${vp.height}px`;E.pageWrap.style.width=`${vp.width}px`;E.pageWrap.style.height=`${vp.height}px`;
   const ctx=pc.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);if(renderTask)try{renderTask.cancel()}catch{}renderTask=page.render({canvasContext:ctx,viewport:vp});try{await renderTask.promise}catch(e){if(e?.name!=='RenderingCancelledException')throw e}if(gen!==renderGeneration)return;
-  const [n,a]=await Promise.all([get(NS,noteKey(currentPage)),get(AS,noteKey(currentPage))]);E.editor.value=n?.text||'';E.chars.textContent=`${E.editor.value.length}자`;pageData={strokes:a?.strokes||[],redo:[],pins:a?.pins||[]};drawAllStrokes();renderPins();E.status.textContent=`${currentPage}/${pdfDoc.numPages} · ${Math.round(scale*100)}%`;
+  const [n,a,t]=await Promise.all([get(NS,noteKey(currentPage)),get(AS,noteKey(currentPage)),get(TS,noteKey(currentPage))]);E.editor.value=n?.text||'';E.chars.textContent=`${E.editor.value.length}자`;E.transcript.value=t?.text||'';E.transcriptChars.textContent=`${E.transcript.value.length}자`;pageData={strokes:a?.strokes||[],redo:[],pins:a?.pins||[]};drawAllStrokes();renderPins();await renderMultiPreviews();E.status.textContent=`${currentPage}/${pdfDoc.numPages} · ${Math.round(scale*100)}%`;
 }
+async function renderMultiPreviews(){E.stageInner.querySelectorAll('.previewCard').forEach(x=>x.remove());E.stageInner.classList.toggle('multi',viewCount>1);E.stageInner.style.setProperty('--grid-cols',viewCount===1?'1':'2');if(viewCount<=1||!pdfDoc)return;for(let i=1;i<viewCount;i++){const p=currentPage+i;if(p>pdfDoc.numPages)break;const b=document.createElement('button');b.className='previewCard';b.type='button';const l=document.createElement('span');l.className='previewPageNo';l.textContent=`${p}p.`;b.appendChild(l);const c=await composePageImage(p,.9),im=document.createElement('img');im.src=c.toDataURL('image/jpeg',.82);b.appendChild(im);b.onclick=()=>goPage(p);E.stageInner.appendChild(b)}}
 function pagePointFromClient(clientX,clientY,pressure=.5){const r=E.inkCanvas.getBoundingClientRect();return{x:clamp((clientX-r.left)/r.width,0,1),y:clamp((clientY-r.top)/r.height,0,1),p:pressure}}
 function canvasPoint(pt){const r=E.inkCanvas.getBoundingClientRect();return{x:pt.x*r.width,y:pt.y*r.height,p:pt.p??.5}}
 function strokeWidth(stroke,p){const base=(stroke.width||2.2)*scale;const pressure=stroke.tool==='highlight'?1:(.45+.9*clamp(p??.5,.05,1));return base*pressure}
@@ -125,22 +127,16 @@ function endStylus(){
   }else currentStroke=null;
 }
 
-async function addPinAt(clientX,clientY){
-  if(!project||tool!=='pin')return;
-  const pt=pagePointFromClient(clientX,clientY,1);
-  const text=prompt('이 위치에 남길 코멘트');
-  if(!text?.trim())return;
-  pageData.pins.push({id:`p-${Date.now()}`,x:pt.x,y:pt.y,text:text.trim(),time:nowTime()});
-  renderPins();
-  await saveAnnotation();
-  E.status.textContent=`핀 저장됨 · ${nowTime()}`;
-}
+function showPinPopover(clientX,clientY){if(!project||tool!=='pin')return;pendingPin=pagePointFromClient(clientX,clientY,1);E.pinText.value='';E.pinPopover.classList.remove('hidden');const w=280,h=150,p=10;E.pinPopover.style.left=`${Math.max(p,Math.min(innerWidth-w-p,clientX+12))}px`;E.pinPopover.style.top=`${Math.max(p,Math.min(innerHeight-h-p,clientY+12))}px`;setTimeout(()=>E.pinText.focus(),20)}
+function hidePinPopover(){pendingPin=null;E.pinPopover.classList.add('hidden');E.pinText.value=''}
+async function commitPin(){const text=E.pinText.value.trim();if(!pendingPin||!text)return hidePinPopover();pageData.pins.push({id:`p-${Date.now()}`,x:pendingPin.x,y:pendingPin.y,text,time:nowTime()});hidePinPopover();renderPins();await saveAnnotation()}
+E.pinSave.onclick=commitPin;E.pinCancel.onclick=hidePinPopover;E.pinPopover.addEventListener('pointerdown',e=>e.stopPropagation());
 
 
 function handlePenPointerDown(e){
   if(e.pointerType!=='pen'||!project)return;
   penPointerSeenUntil=performance.now()+1200;e.preventDefault();e.stopPropagation();
-  if(tool==='pin'){addPinAt(e.clientX,e.clientY);return;}
+  if(tool==='pin'){showPinPopover(e.clientX,e.clientY);return;}
   try{E.inkCanvas.setPointerCapture(e.pointerId)}catch{}
   beginStylus(e.clientX,e.clientY,pointerPressure(e),e.pointerId);
 }
@@ -165,7 +161,7 @@ function onTouchEnd(e){
   const remaining=getFingerTouches(e);if(remaining.length>=2)return;
   e.preventDefault();
   if(touchState.mode==='pan'&&!touchState.moved&&performance.now()-touchState.startTime<360&&project){
-    if(tool==='pin') addPinAt(touchState.startX,touchState.startY);
+    if(tool==='pin') showPinPopover(touchState.startX,touchState.startY);
     else{
       const r=E.inkCanvas.getBoundingClientRect(),x=(touchState.startX-r.left)/r.width;
       if(x<.12)goPage(currentPage-1);else if(x>.88)goPage(currentPage+1);
@@ -175,21 +171,21 @@ function onTouchEnd(e){
 }
 E.pageWrap.addEventListener('touchstart',onTouchStart,{passive:false});E.pageWrap.addEventListener('touchmove',onTouchMove,{passive:false});E.pageWrap.addEventListener('touchend',onTouchEnd,{passive:false});E.pageWrap.addEventListener('touchcancel',onTouchEnd,{passive:false});
 
-E.inkCanvas.addEventListener('click',e=>{if(!project||tool!=='pin')return;addPinAt(e.clientX,e.clientY)});
+E.inkCanvas.addEventListener('click',e=>{if(!project||tool!=='pin')return;showPinPopover(e.clientX,e.clientY)});
 function renderPins(){E.pinLayer.innerHTML='';E.pinList.innerHTML='';for(const p of pageData.pins){const b=document.createElement('button');b.className='pin';b.textContent='📌';b.style.left=`${p.x*100}%`;b.style.top=`${p.y*100}%`;b.title=p.text;b.onpointerdown=e=>e.stopPropagation();b.onclick=e=>{e.stopPropagation();toast(p.text)};E.pinLayer.appendChild(b);const row=document.createElement('div');row.className='pitem';row.innerHTML=`<span><b>${p.time||''}</b> ${escapeHtml(p.text)}</span><button data-id="${p.id}">삭제</button>`;row.querySelector('button').onclick=()=>{pageData.pins=pageData.pins.filter(x=>x.id!==p.id);renderPins();scheduleSave()};E.pinList.appendChild(row)}}
 function escapeHtml(s=''){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
-async function goPage(p){if(!pdfDoc)return;await saveNote();await saveAnnotation();currentPage=clamp(p,1,pdfDoc.numPages);await saveProject();await renderPage();E.stage.scrollTo(0,0)}
+async function goPage(p){if(!pdfDoc)return;await Promise.all([saveNote(),saveTranscript(),saveAnnotation()]);currentPage=clamp(p,1,pdfDoc.numPages);await saveProject();await renderPage();E.stage.scrollTo(0,0)}
 E.prev.onclick=()=>goPage(currentPage-1);E.next.onclick=()=>goPage(currentPage+1);E.page.onchange=()=>goPage(Number(E.page.value)||currentPage);E.fit.onclick=()=>{fit=true;renderPage()};window.addEventListener('resize',()=>{if(fit&&pdfDoc)requestScaleRender()});
 
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{tool=b.dataset.tool;document.querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('active',x===b));E.inputBadge.textContent=tool==='pin'?'📌 탭해서 핀 추가':tool==='erase'?'⌫ Pencil로 지우기':'✏️ Pencil · 👆 손가락 이동'});
 E.thin.onclick=()=>{lineWidth=clamp(lineWidth-.5,.8,8);toast(`굵기 ${lineWidth.toFixed(1)}`)};E.thick.onclick=()=>{lineWidth=clamp(lineWidth+.5,.8,8);toast(`굵기 ${lineWidth.toFixed(1)}`)};
 E.undo.onclick=()=>{const s=pageData.strokes.pop();if(s){pageData.redo.push(s);drawAllStrokes();scheduleSave()}};E.redo.onclick=()=>{const s=pageData.redo.pop();if(s){pageData.strokes.push(s);drawAllStrokes();scheduleSave()}};
-E.editor.addEventListener('input',()=>{E.chars.textContent=`${E.editor.value.length}자`;scheduleSave()});E.title.addEventListener('input',scheduleSave);document.querySelectorAll('[data-tag]').forEach(b=>b.onclick=()=>insertText(b.dataset.tag));E.time.onclick=()=>insertText(`[${nowTime()}] `);
+E.editor.addEventListener('input',()=>{E.chars.textContent=`${E.editor.value.length}자`;scheduleSave()});E.transcript.addEventListener('input',()=>{E.transcriptChars.textContent=`${E.transcript.value.length}자`;scheduleSave()});E.title.addEventListener('input',scheduleSave);document.querySelectorAll('[data-tag]').forEach(b=>b.onclick=()=>insertText(b.dataset.tag));E.time.onclick=()=>insertText(`[${nowTime()}] `);E.viewCount.value=String(viewCount);E.viewCount.onchange=()=>{viewCount=Math.max(1,Math.min(4,Number(E.viewCount.value)||1));localStorage.setItem('lh-v4-view-count',String(viewCount));fit=true;if(pdfDoc)renderPage()};
 function insertText(t){const a=E.editor.selectionStart,b=E.editor.selectionEnd,v=E.editor.value;E.editor.value=v.slice(0,a)+t+v.slice(b);E.editor.focus();E.editor.selectionStart=E.editor.selectionEnd=a+t.length;E.editor.dispatchEvent(new Event('input'))}
 E.layoutToggle.onclick=()=>{E.shell.classList.toggle('notes-bottom');const bottom=E.shell.classList.contains('notes-bottom');E.layoutToggle.textContent=bottom?'코멘트 →':'코멘트 ↓';setTimeout(()=>pdfDoc&&renderPage(),80)};
 
-function setupMic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){E.mic.disabled=true;E.mic.title='이 브라우저는 음성입력을 지원하지 않습니다';return}recognition=new SR();recognition.lang='ko-KR';recognition.continuous=true;recognition.interimResults=false;recognition.onresult=e=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)t+=e.results[i][0].transcript+' ';if(t)insertText(t)};recognition.onend=()=>{listening=false;E.mic.textContent='🎤'};E.mic.onclick=()=>{if(listening){recognition.stop();return}try{recognition.start();listening=true;E.mic.textContent='⏹'}catch{}}}
+function setupMic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){E.mic.disabled=true;return}recognition=new SR();recognition.lang='ko-KR';recognition.continuous=true;recognition.interimResults=false;recognition.onresult=e=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)t+=e.results[i][0].transcript+' ';if(t.trim()){const q=E.transcript.value&&!E.transcript.value.endsWith('\n')?'\n':'';E.transcript.value+=`${q}[${nowTime()}] ${t.trim()}\n`;E.transcript.dispatchEvent(new Event('input'))}};recognition.onend=()=>{listening=false;E.mic.textContent='🎤 시작';E.mic.classList.remove('listening')};E.mic.onclick=()=>{if(listening){recognition.stop();return}try{recognition.start();listening=true;E.mic.textContent='⏹ 중지';E.mic.classList.add('listening')}catch{}}}
 
 async function composePageImage(pageNo,renderScale=1.7){const page=await pdfDoc.getPage(pageNo),vp=page.getViewport({scale:renderScale});const c=document.createElement('canvas');c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);const ctx=c.getContext('2d');await page.render({canvasContext:ctx,viewport:vp}).promise;const a=await get(AS,`${project.id}:${pageNo}`);for(const s of a?.strokes||[]){const fake={...s,points:s.points.map(p=>({x:p.x*c.width,y:p.y*c.height,p:p.p}))};drawStrokeToContext(ctx,fake,renderScale)}return c}
 function drawStrokeToContext(ctx,stroke,renderScale=1){
