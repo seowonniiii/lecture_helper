@@ -54,8 +54,9 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
         scrollView.bouncesZoom = true
         scrollView.alwaysBounceVertical = false
         scrollView.alwaysBounceHorizontal = false
+        scrollView.delaysContentTouches = false
 
-        // Fingers pan/zoom the PDF. Apple Pencil does not drive the scroll view.
+        // Fingers pan/zoom the PDF. Apple Pencil never drives the scroll view.
         scrollView.panGestureRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
         scrollView.pinchGestureRecognizer?.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
 
@@ -64,6 +65,7 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
 
         pageImageView.contentMode = .scaleToFill
         pageImageView.backgroundColor = .white
+        pageImageView.isUserInteractionEnabled = false
         contentView.addSubview(pageImageView)
 
         canvasView.backgroundColor = .clear
@@ -71,6 +73,7 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
         canvasView.drawingPolicy = .pencilOnly
         canvasView.isScrollEnabled = false
         canvasView.delegate = self
+        canvasView.drawingGestureRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
         contentView.addSubview(canvasView)
 
         toolPicker.addObserver(canvasView)
@@ -133,10 +136,10 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
         format.scale = UIScreen.main.scale
 
         return UIGraphicsImageRenderer(size: size, format: format).image { renderer in
-            UIColor.white.setFill()
-            renderer.fill(CGRect(origin: .zero, size: size))
-
             let ctx = renderer.cgContext
+            ctx.setFillColor(UIColor.white.cgColor)
+            ctx.fill(CGRect(origin: .zero, size: size))
+
             ctx.saveGState()
             ctx.translateBy(x: 0, y: size.height)
             ctx.scaleBy(x: 1, y: -1)
