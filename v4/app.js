@@ -57,9 +57,41 @@ function canvasPoint(pt){const r=E.inkCanvas.getBoundingClientRect();return{x:pt
 function strokeWidth(stroke,p){const base=(stroke.width||2.2)*scale;const pressure=stroke.tool==='highlight'?1:(.45+.9*clamp(p??.5,.05,1));return base*pressure}
 function setupInkCtx(){const ctx=E.inkCanvas.getContext('2d');const dpr=Math.min(window.devicePixelRatio||1,2.5);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.lineCap='round';ctx.lineJoin='round';return ctx}
 function clearInk(){const ctx=E.inkCanvas.getContext('2d');ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,E.inkCanvas.width,E.inkCanvas.height);ctx.restore()}
-function drawStroke(stroke){if(!stroke?.points?.length)return;const ctx=setupInkCtx();const pts=stroke.points.map(canvasPoint);ctx.save();ctx.globalCompositeOperation=stroke.tool==='highlight'?'multiply':'source-over';ctx.strokeStyle=stroke.color||'#e11d48';ctx.globalAlpha=stroke.tool==='highlight'?.28:1;if(pts.length===1){ctx.beginPath();ctx.fillStyle=ctx.strokeStyle;ctx.globalAlpha=stroke.tool==='highlight'?.28:1;ctx.arc(pts[0].x,pts[0].y,strokeWidth(stroke,pts[0].p)/2,0,Math.PI*2);ctx.fill();ctx.restore();return}
-  for(let i=0;i<pts.length-1;i++){const a=pts[Math.max(0,i-1)],b=pts[i],c=pts[i+1];const start={x:(a.x+b.x)/2,y:(a.y+b.y)/2};const end={x:(b.x+c.x)/2,y:(b.y+c.y)/2};ctx.beginPath();ctx.moveTo(start.x,start.y);ctx.quadraticCurveTo(b.x,b.y,end.x,end.y);ctx.lineWidth=stroke.tool==='highlight'?strokeWidth(stroke,1)*3.2:strokeWidth(stroke,(b.p+c.p)/2);ctx.stroke()}
-  ctx.restore()}
+function drawStroke(stroke){
+  if(!stroke?.points?.length)return;
+  const ctx=setupInkCtx();
+  const pts=stroke.points.map(canvasPoint);
+  ctx.save();
+  ctx.lineCap='round';ctx.lineJoin='round';
+
+  // Keep V2 highlighter behavior exactly: fixed width, source-over, 25% alpha,
+  // simple polyline. Pencil pressure/smoothing is intentionally NOT applied.
+  if(stroke.tool==='highlight'){
+    ctx.globalCompositeOperation='source-over';
+    ctx.strokeStyle=stroke.color||'#facc15';
+    ctx.globalAlpha=.25;
+    ctx.lineWidth=18;
+    if(pts.length===1){
+      ctx.beginPath();ctx.fillStyle=ctx.strokeStyle;ctx.arc(pts[0].x,pts[0].y,9,0,Math.PI*2);ctx.fill();ctx.restore();return;
+    }
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+    for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
+    ctx.stroke();ctx.restore();return;
+  }
+
+  ctx.globalCompositeOperation='source-over';
+  ctx.strokeStyle=stroke.color||'#e11d48';
+  ctx.globalAlpha=1;
+  if(pts.length===1){ctx.beginPath();ctx.fillStyle=ctx.strokeStyle;ctx.arc(pts[0].x,pts[0].y,strokeWidth(stroke,pts[0].p)/2,0,Math.PI*2);ctx.fill();ctx.restore();return}
+  for(let i=0;i<pts.length-1;i++){
+    const a=pts[Math.max(0,i-1)],b=pts[i],c=pts[i+1];
+    const start={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+    const end={x:(b.x+c.x)/2,y:(b.y+c.y)/2};
+    ctx.beginPath();ctx.moveTo(start.x,start.y);ctx.quadraticCurveTo(b.x,b.y,end.x,end.y);
+    ctx.lineWidth=strokeWidth(stroke,(b.p+c.p)/2);ctx.stroke();
+  }
+  ctx.restore()
+}
 function drawAllStrokes(){clearInk();for(const s of pageData.strokes)drawStroke(s)}
 function drawLiveSegment(stroke){drawAllStrokes();drawStroke(stroke)}
 function pointDistanceToStroke(pt,stroke){let min=Infinity;for(const q of stroke.points||[]){const dx=pt.x-q.x,dy=pt.y-q.y;min=Math.min(min,dx*dx+dy*dy)}return Math.sqrt(min)}
@@ -67,7 +99,7 @@ function eraseAt(pt){const radius=Math.max(.012,(lineWidth*3)/(Math.max(E.inkCan
 
 function beginStylus(clientX,clientY,pressure,id='touch-stylus'){
   if(!project||tool==='pin')return;if(tool==='erase'){stylusDrawing=true;stylusPointerId=id;eraseAt(pagePointFromClient(clientX,clientY,pressure));return}
-  stylusDrawing=true;stylusPointerId=id;currentStroke={id:`s-${Date.now()}-${Math.random().toString(36).slice(2)}`,tool,color:tool==='highlight'?'#facc15':E.inkColor.value,width:lineWidth,points:[pagePointFromClient(clientX,clientY,pressure)]};lastStylusPoint=currentStroke.points[0];
+  stylusDrawing=true;stylusPointerId=id;currentStroke={id:`s-${Date.now()}-${Math.random().toString(36).slice(2)}`,tool,color:E.inkColor.value,width:tool==='highlight'?18:lineWidth,points:[pagePointFromClient(clientX,clientY,pressure)]};lastStylusPoint=currentStroke.points[0];
 }
 function continueStylus(clientX,clientY,pressure){if(!stylusDrawing)return;const pt=pagePointFromClient(clientX,clientY,pressure);if(tool==='erase'){eraseAt(pt);return}if(!currentStroke)return;const dx=pt.x-(lastStylusPoint?.x??pt.x),dy=pt.y-(lastStylusPoint?.y??pt.y);if(dx*dx+dy*dy<0.0000004)return;currentStroke.points.push(pt);lastStylusPoint=pt;drawLiveSegment(currentStroke)}
 function endStylus(){if(!stylusDrawing)return;stylusDrawing=false;stylusPointerId=null;if(currentStroke?.points?.length){pageData.strokes.push(currentStroke);pageData.redo=[];currentStroke=null;lastStylusPoint=null;drawAllStrokes();scheduleSave()}else currentStroke=null}
