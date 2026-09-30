@@ -186,38 +186,69 @@ function insertText(t){const a=E.editor.selectionStart,b=E.editor.selectionEnd,v
 E.layoutToggle.onclick=()=>{E.shell.classList.toggle('notes-bottom');const bottom=E.shell.classList.contains('notes-bottom');E.layoutToggle.textContent=bottom?'코멘트 →':'코멘트 ↓';setTimeout(()=>pdfDoc&&renderPage(),80)};
 
 function cleanImportedMdBody(body,pageNo){
-  let s=(body||'').trim();
-  s=s.replace(new RegExp(`^\\s*${pageNo}\\s*p\\.\\s*`,'i'),'').trim();
-  const own=s.match(/###\\s*(?:\\.md\\s*\\/?\\s*전사문|실시간\\s*전사|전사문)[^\\n]*\\n([\\s\\S]*?)(?=\\n###\\s|$)/i);
-  return (own?own[1]:s).trim();
+  let lines=String(body||'').replaceAll('\r','').split('\n');
+  while(lines.length&&!lines[0].trim())lines.shift();
+  while(lines.length&&!lines[lines.length-1].trim())lines.pop();
+  if(lines.length){
+    const compact=lines[0].trim().replaceAll(' ','').toLowerCase();
+    if(compact===`${pageNo}p.`)lines.shift();
+  }
+  let s=lines.join('\n').trim();
+  const labels=['### .md / 전사문','### 실시간 전사','### 전사문'];
+  for(const label of labels){
+    const at=s.indexOf(label);
+    if(at>=0){
+      const from=at+label.length;
+      const rest=s.slice(from).replace(/^\s*\n?/,'');
+      const next=rest.indexOf('\n### ');
+      return (next>=0?rest.slice(0,next):rest).trim();
+    }
+  }
+  return s;
+}
+function pageMarkerNumber(line){
+  const t=String(line||'').trim();
+  if(!t.startsWith('<<<PAGE ')||!t.endsWith('>>>'))return null;
+  const n=Number(t.slice(8,-3).trim());
+  return Number.isInteger(n)?n:null;
+}
+function headingPageNumber(line){
+  let t=String(line||'').trim();
+  while(t.startsWith('#'))t=t.slice(1).trimStart();
+  t=t.replaceAll(' ','').toLowerCase();
+  if(!t.endsWith('p.'))return null;
+  const n=Number(t.slice(0,-2));
+  return Number.isInteger(n)?n:null;
 }
 function parseMarkdownPages(text){
-  const src=String(text||'');
-  const markers=[...src.matchAll(/<<<PAGE\\s+(\\d+)>>>/gi)];
+  const lines=String(text||'').replaceAll('\r','').split('\n');
   const out=[];
-  if(markers.length){
-    for(let i=0;i<markers.length;i++){
-      const page=Number(markers[i][1]);
-      const from=markers[i].index+markers[i][0].length;
-      const to=i+1<markers.length?markers[i+1].index:src.length;
-      out.push({page,text:cleanImportedMdBody(src.slice(from,to),page)});
-    }
-    return out;
+  let page=null,buf=[];
+  const flush=()=>{
+    if(page!==null)out.push({page,text:cleanImportedMdBody(buf.join('\n'),page)});
+    buf=[];
+  };
+  for(const line of lines){
+    const n=pageMarkerNumber(line);
+    if(n!==null){flush();page=n;continue}
+    if(page!==null)buf.push(line);
   }
-  const headings=[...src.matchAll(/^\\s*(?:#{1,6}\\s*)?(\\d+)\\s*p\\.\\s*$/gmi)];
-  if(headings.length){
-    for(let i=0;i<headings.length;i++){
-      const page=Number(headings[i][1]);
-      const from=headings[i].index+headings[i][0].length;
-      const to=i+1<headings.length?headings[i+1].index:src.length;
-      out.push({page,text:cleanImportedMdBody(src.slice(from,to),page)});
-    }
-    return out;
+  flush();
+  if(out.length)return out;
+
+  page=null;buf=[];
+  for(const line of lines){
+    const n=headingPageNumber(line);
+    if(n!==null){flush();page=n;continue}
+    if(page!==null)buf.push(line);
   }
-  return [{page:currentPage,text:src.trim()}];
+  flush();
+  if(out.length)return out;
+  return [{page:currentPage,text:String(text||'').trim()}];
 }
 async function importMarkdownFile(file){
   if(!project||!pdfDoc){toast('먼저 PDF를 열어주세요');return}
+  await saveTranscript();
   const text=await file.text();
   const sections=parseMarkdownPages(text);
   let count=0,ignored=0;
@@ -264,11 +295,11 @@ E.md.onclick=async()=>{if(!project)return;await Promise.all([saveNote(),saveTran
 
 ${p}p.
 
-### 코멘트
-${n?.text||''}
-
-### 실시간 전사
+### .md / 전사문
 ${t?.text||''}
+
+### 수업 필기
+${n?.text||''}
 
 `}downloadBlob(new Blob([out],{type:'text/markdown;charset=utf-8'}),`${safe(E.title.value)}_notes.md`)};
 E.json.onclick=async()=>{if(!project)return;await Promise.all([saveProject(),saveNote(),saveTranscript(),saveAnnotation()]);const notes=await getByProject(NS,project.id),transcripts=await getByProject(TS,project.id),annotations=await getByProject(AS,project.id);const payload={version:4,exportedAt:new Date().toISOString(),project:{...project,pdfBlob:undefined},notes,transcripts,annotations};downloadBlob(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),`${safe(E.title.value)}_backup.json`)};
