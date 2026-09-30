@@ -1,9 +1,38 @@
 import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs';
+import { marked } from 'https://cdn.jsdelivr.net/npm/marked@18.0.14/lib/marked.esm.js';
+import TurndownService from 'https://cdn.jsdelivr.net/npm/turndown@7.2.4/+esm';
+import { gfm } from 'https://cdn.jsdelivr.net/npm/@truto/turndown-plugin-gfm@1.0.3/+esm';
 import {Document,Packer,Paragraph,TextRun,HeadingLevel,ImageRun,PageBreak,AlignmentType,Table,TableRow,TableCell,WidthType,PageOrientation} from 'https://cdn.jsdelivr.net/npm/docx@9.8.1/+esm';
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs';
 
 const $=id=>document.getElementById(id);
-const E={shell:$('shell'),pdfInput:$('pdfInput'),emptyPdf:$('emptyPdf'),backupInput:$('backupInput'),status:$('status'),title:$('title'),filename:$('filename'),stage:$('stage'),stageInner:$('stageInner'),empty:$('empty'),pageWrap:$('pageWrap'),pdfCanvas:$('pdfCanvas'),inkCanvas:$('inkCanvas'),pinLayer:$('pinLayer'),page:$('page'),total:$('total'),pLabel:$('pLabel'),prev:$('prev'),next:$('next'),fit:$('fit'),inkColor:$('inkColor'),thin:$('thin'),thick:$('thick'),undo:$('undo'),redo:$('redo'),editor:$('editor'),chars:$('chars'),time:$('time'),mic:$('mic'),transcript:$('transcript'),transcriptChars:$('transcriptChars'),pinList:$('pinList'),docx:$('docx'),printBtn:$('printBtn'),md:$('md'),json:$('json'),toast:$('toast'),printArea:$('printArea'),layoutToggle:$('layoutToggle'),inputBadge:$('inputBadge'),viewCount:$('viewCount'),mdInput:$('mdInput'),mdFilename:$('mdFilename'),pinPopover:$('pinPopover'),pinText:$('pinText'),pinSave:$('pinSave'),pinCancel:$('pinCancel')};
+const E={shell:$('shell'),pdfInput:$('pdfInput'),emptyPdf:$('emptyPdf'),backupInput:$('backupInput'),status:$('status'),title:$('title'),filename:$('filename'),stage:$('stage'),stageInner:$('stageInner'),empty:$('empty'),pageWrap:$('pageWrap'),pdfCanvas:$('pdfCanvas'),inkCanvas:$('inkCanvas'),pinLayer:$('pinLayer'),page:$('page'),total:$('total'),pLabel:$('pLabel'),prev:$('prev'),next:$('next'),fit:$('fit'),inkColor:$('inkColor'),thin:$('thin'),thick:$('thick'),undo:$('undo'),redo:$('redo'),editor:$('editor'),chars:$('chars'),time:$('time'),mic:$('mic'),transcript:$('transcript'),transcriptChars:$('transcriptChars'),pinList:$('pinList'),docx:$('docx'),printBtn:$('printBtn'),md:$('md'),json:$('json'),toast:$('toast'),printArea:$('printArea'),layoutToggle:$('layoutToggle'),inputBadge:$('inputBadge'),viewCount:$('viewCount'),mdInput:$('mdInput'),mdFilename:$('mdFilename'),mdRendered:$('mdRendered'),mdModeRendered:$('mdModeRendered'),mdModeRaw:$('mdModeRaw'),pinPopover:$('pinPopover'),pinText:$('pinText'),pinSave:$('pinSave'),pinCancel:$('pinCancel')};
+
+const mdTurndown=new TurndownService({headingStyle:'atx',bulletListMarker:'-',codeBlockStyle:'fenced',emDelimiter:'*',strongDelimiter:'**'});
+mdTurndown.use(gfm);
+mdTurndown.keep(['exam','mark','span']);
+let mdViewMode=localStorage.getItem('lh-v4-md-view-mode')||'rendered',syncingRenderedEdit=false,renderedEditTimer=null;
+function sanitizeRenderedHtml(html){
+  const t=document.createElement('template');t.innerHTML=String(html||'');
+  t.content.querySelectorAll('script,iframe,object,embed,link,meta,style').forEach(x=>x.remove());
+  t.content.querySelectorAll('*').forEach(el=>{
+    for(const a of [...el.attributes]){
+      const n=a.name.toLowerCase(),v=String(a.value||'').trim().toLowerCase();
+      if(n.startsWith('on')||((n==='href'||n==='src')&&v.startsWith('javascript:')))el.removeAttribute(a.name);
+    }
+  });
+  return t.innerHTML;
+}
+function markdownToSafeHtml(md){return sanitizeRenderedHtml(marked.parse(String(md||''),{gfm:true,breaks:true}));}
+function syncMdRendered(){if(!E.mdRendered)return;E.mdRendered.innerHTML=markdownToSafeHtml(E.transcript.value);}
+function setMdViewMode(mode){
+  mdViewMode=mode==='raw'?'raw':'rendered';localStorage.setItem('lh-v4-md-view-mode',mdViewMode);
+  const rendered=mdViewMode==='rendered';
+  E.mdRendered?.classList.toggle('hidden',!rendered);E.transcript?.classList.toggle('hidden',rendered);
+  E.mdModeRendered?.classList.toggle('active',rendered);E.mdModeRaw?.classList.toggle('active',!rendered);
+  if(rendered)syncMdRendered();
+}
+function renderedHtmlToMarkdown(){return mdTurndown.turndown(E.mdRendered.innerHTML).replace(/\n{3,}/g,'\n\n').trim();}
 
 let db,pdfDoc=null,project=null,currentPage=1,scale=1.15,fit=true,renderTask=null,tool='pen',pageData={strokes:[],redo:[],pins:[]},saveTimer=null,recognition=null,listening=false,lineWidth=2.2,highlightWidth=Math.max(6,Math.min(40,Number(localStorage.getItem('lh-v4-highlight-width'))||18)),viewCount=Math.max(1,Math.min(4,Number(localStorage.getItem('lh-v4-view-count'))||1)),pendingPin=null;
 let stylusPointerId=null,stylusDrawing=false,currentStroke=null,lastStylusPoint=null;
@@ -52,7 +81,7 @@ async function renderPage(){
   const page=await pdfDoc.getPage(currentPage);const base=page.getViewport({scale:1});if(fit)scale=fitScale(base);const vp=page.getViewport({scale});
   const dpr=Math.min(window.devicePixelRatio||1,2.5);const pc=E.pdfCanvas,ic=E.inkCanvas;pc.width=Math.round(vp.width*dpr);pc.height=Math.round(vp.height*dpr);pc.style.width=`${vp.width}px`;pc.style.height=`${vp.height}px`;ic.width=Math.round(vp.width*dpr);ic.height=Math.round(vp.height*dpr);ic.style.width=`${vp.width}px`;ic.style.height=`${vp.height}px`;E.pageWrap.style.width=`${vp.width}px`;E.pageWrap.style.height=`${vp.height}px`;
   const ctx=pc.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);if(renderTask)try{renderTask.cancel()}catch{}renderTask=page.render({canvasContext:ctx,viewport:vp});try{await renderTask.promise}catch(e){if(e?.name!=='RenderingCancelledException')throw e}if(gen!==renderGeneration)return;
-  const [n,a,t]=await Promise.all([get(NS,noteKey(currentPage)),get(AS,noteKey(currentPage)),get(TS,noteKey(currentPage))]);E.editor.value=n?.text||'';E.chars.textContent=`${E.editor.value.length}자`;E.transcript.value=t?.text||'';E.transcriptChars.textContent=`${E.transcript.value.length}자`;pageData={strokes:a?.strokes||[],redo:[],pins:a?.pins||[]};drawAllStrokes();renderPins();await renderMultiPreviews();E.status.textContent=`${currentPage}/${pdfDoc.numPages} · ${Math.round(scale*100)}%`;
+  const [n,a,t]=await Promise.all([get(NS,noteKey(currentPage)),get(AS,noteKey(currentPage)),get(TS,noteKey(currentPage))]);E.editor.value=n?.text||'';E.chars.textContent=`${E.editor.value.length}자`;E.transcript.value=t?.text||'';E.transcriptChars.textContent=`${E.transcript.value.length}자`;syncMdRendered();pageData={strokes:a?.strokes||[],redo:[],pins:a?.pins||[]};drawAllStrokes();renderPins();await renderMultiPreviews();E.status.textContent=`${currentPage}/${pdfDoc.numPages} · ${Math.round(scale*100)}%`;
 }
 async function renderMultiPreviews(){E.stageInner.querySelectorAll('.previewCard').forEach(x=>x.remove());E.stageInner.classList.toggle('multi',viewCount>1);E.stageInner.style.setProperty('--grid-cols',viewCount===1?'1':'2');if(viewCount<=1||!pdfDoc)return;for(let i=1;i<viewCount;i++){const p=currentPage+i;if(p>pdfDoc.numPages)break;const b=document.createElement('button');b.className='previewCard';b.type='button';const l=document.createElement('span');l.className='previewPageNo';l.textContent=`${p}p.`;b.appendChild(l);const c=await composePageImage(p,.9),im=document.createElement('img');im.src=c.toDataURL('image/jpeg',.82);b.appendChild(im);b.onclick=()=>goPage(p);E.stageInner.appendChild(b)}}
 function pagePointFromClient(clientX,clientY,pressure=.5){const r=E.inkCanvas.getBoundingClientRect();return{x:clamp((clientX-r.left)/r.width,0,1),y:clamp((clientY-r.top)/r.height,0,1),p:pressure}}
@@ -181,7 +210,7 @@ E.prev.onclick=()=>goPage(currentPage-1);E.next.onclick=()=>goPage(currentPage+1
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{tool=b.dataset.tool;document.querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('active',x===b));E.inputBadge.textContent=tool==='pin'?'📌 탭해서 핀 추가':tool==='erase'?'⌫ Pencil로 지우기':'✏️ Pencil · 👆 손가락 이동'});
 E.thin.onclick=()=>{if(tool==='highlight'){highlightWidth=clamp(highlightWidth-2,6,40);localStorage.setItem('lh-v4-highlight-width',String(highlightWidth));toast(`형광펜 굵기 ${highlightWidth}`)}else{lineWidth=clamp(lineWidth-.5,.8,8);toast(`펜 굵기 ${lineWidth.toFixed(1)}`)}};E.thick.onclick=()=>{if(tool==='highlight'){highlightWidth=clamp(highlightWidth+2,6,40);localStorage.setItem('lh-v4-highlight-width',String(highlightWidth));toast(`형광펜 굵기 ${highlightWidth}`)}else{lineWidth=clamp(lineWidth+.5,.8,8);toast(`펜 굵기 ${lineWidth.toFixed(1)}`)}};
 E.undo.onclick=()=>{const s=pageData.strokes.pop();if(s){pageData.redo.push(s);drawAllStrokes();scheduleSave()}};E.redo.onclick=()=>{const s=pageData.redo.pop();if(s){pageData.strokes.push(s);drawAllStrokes();scheduleSave()}};
-E.editor.addEventListener('input',()=>{E.chars.textContent=`${E.editor.value.length}자`;scheduleSave()});E.transcript.addEventListener('input',()=>{E.transcriptChars.textContent=`${E.transcript.value.length}자`;scheduleSave()});E.title.addEventListener('input',scheduleSave);document.querySelectorAll('[data-tag]').forEach(b=>b.onclick=()=>insertText(b.dataset.tag));E.time.onclick=()=>insertText(`[${nowTime()}] `);E.viewCount.value=String(viewCount);E.viewCount.onchange=()=>{viewCount=Math.max(1,Math.min(4,Number(E.viewCount.value)||1));localStorage.setItem('lh-v4-view-count',String(viewCount));fit=true;if(pdfDoc)renderPage()};
+E.editor.addEventListener('input',()=>{E.chars.textContent=`${E.editor.value.length}자`;scheduleSave()});E.transcript.addEventListener('input',()=>{E.transcriptChars.textContent=`${E.transcript.value.length}자`;if(!syncingRenderedEdit&&mdViewMode==='rendered')syncMdRendered();scheduleSave()});E.title.addEventListener('input',scheduleSave);document.querySelectorAll('[data-tag]').forEach(b=>b.onclick=()=>insertText(b.dataset.tag));E.time.onclick=()=>insertText(`[${nowTime()}] `);E.viewCount.value=String(viewCount);E.viewCount.onchange=()=>{viewCount=Math.max(1,Math.min(4,Number(E.viewCount.value)||1));localStorage.setItem('lh-v4-view-count',String(viewCount));fit=true;if(pdfDoc)renderPage()};
 function insertText(t){const a=E.editor.selectionStart,b=E.editor.selectionEnd,v=E.editor.value;E.editor.value=v.slice(0,a)+t+v.slice(b);E.editor.focus();E.editor.selectionStart=E.editor.selectionEnd=a+t.length;E.editor.dispatchEvent(new Event('input'))}
 E.layoutToggle.onclick=()=>{E.shell.classList.toggle('notes-bottom');const bottom=E.shell.classList.contains('notes-bottom');E.layoutToggle.textContent=bottom?'코멘트 →':'코멘트 ↓';setTimeout(()=>pdfDoc&&renderPage(),80)};
 
@@ -264,6 +293,24 @@ async function importMarkdownFile(file){
 }
 E.mdInput.onchange=async e=>{const f=e.target.files?.[0];if(!f)return;try{await importMarkdownFile(f)}catch(err){console.error(err);toast('MD 파일을 읽지 못했습니다')}finally{e.target.value=''}};
 
+E.mdModeRendered.onclick=()=>setMdViewMode('rendered');
+E.mdModeRaw.onclick=()=>setMdViewMode('raw');
+E.mdRendered.addEventListener('input',()=>{
+  clearTimeout(renderedEditTimer);
+  renderedEditTimer=setTimeout(()=>{
+    syncingRenderedEdit=true;
+    E.transcript.value=renderedHtmlToMarkdown();
+    E.transcriptChars.textContent=`${E.transcript.value.length}자`;
+    scheduleSave();
+    syncingRenderedEdit=false;
+  },120);
+});
+E.mdRendered.addEventListener('paste',e=>{
+  e.preventDefault();
+  const text=e.clipboardData?.getData('text/plain')||'';
+  document.execCommand('insertText',false,text);
+});
+
 function setupMic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){E.mic.disabled=true;return}recognition=new SR();recognition.lang='ko-KR';recognition.continuous=true;recognition.interimResults=false;recognition.onresult=e=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)t+=e.results[i][0].transcript+' ';if(t.trim()){const q=E.transcript.value&&!E.transcript.value.endsWith('\n')?'\n':'';E.transcript.value+=`${q}[${nowTime()}] ${t.trim()}\n`;E.transcript.dispatchEvent(new Event('input'))}};recognition.onend=()=>{listening=false;E.mic.textContent='🎤 시작';E.mic.classList.remove('listening')};E.mic.onclick=()=>{if(listening){recognition.stop();return}try{recognition.start();listening=true;E.mic.textContent='⏹ 중지';E.mic.classList.add('listening')}catch{}}}
 
 async function composePageImage(pageNo,renderScale=1.7){const page=await pdfDoc.getPage(pageNo),vp=page.getViewport({scale:renderScale});const c=document.createElement('canvas');c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);const ctx=c.getContext('2d');await page.render({canvasContext:ctx,viewport:vp}).promise;const a=await get(AS,`${project.id}:${pageNo}`);for(const s of a?.strokes||[]){const fake={...s,points:s.points.map(p=>({x:p.x*c.width,y:p.y*c.height,p:p.p}))};drawStrokeToContext(ctx,fake,renderScale)}for(const q of a?.pins||[]){ctx.save();ctx.fillStyle='#f59e0b';ctx.beginPath();ctx.arc(q.x*c.width,q.y*c.height,8*renderScale,0,Math.PI*2);ctx.fill();ctx.fillStyle='#111827';ctx.font=`bold ${8*renderScale}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('!',q.x*c.width,q.y*c.height);ctx.restore()}return c}
@@ -313,4 +360,4 @@ E.pdfInput.onchange=e=>{const f=e.target.files?.[0];if(f)loadPdfFile(f)};E.empty
 // Mouse/trackpad fallback: clicking page edges changes pages; drawing remains Pencil-only by design.
 E.pageWrap.addEventListener('mouseup',e=>{if(e.button!==0||tool==='pin'||!project)return;const r=E.inkCanvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width;if(x<.08)goPage(currentPage-1);else if(x>.92)goPage(currentPage+1)});
 
-db=await openDb();setupMic();await restoreLast();
+db=await openDb();setMdViewMode(mdViewMode);setupMic();await restoreLast();

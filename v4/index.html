@@ -28,9 +28,12 @@
       <section class="notePane transcriptPane">
         <div class="paneHead">
           <div><b>📄 .md / 전사문</b><small id="mdFilename">페이지별 전사문 · 수정 가능</small></div>
-          <div class="paneActions"><label class="btn mdload">MD 불러오기<input id="mdInput" type="file" accept=".md,text/markdown,text/plain" hidden></label><button id="mic" class="btn micbtn">🎤 시작</button></div>
+          <div class="paneActions"><label class="btn mdload">MD 불러오기<input id="mdInput" type="file" accept=".md,text/markdown,text/plain" hidden></label><div class="mdmode"><button id="mdModeRendered" class="tool active" type="button">결과 편집</button><button id="mdModeRaw" class="tool" type="button">원문</button></div><button id="mic" class="btn micbtn">🎤 시작</button></div>
         </div>
-        <textarea id="transcript" class="transcript" placeholder="<<<PAGE n>>> 형식의 .md 파일을 불러오거나 직접 수정하세요. 음성 전사도 이 칸에 추가됩니다."></textarea>
+        <div class="mdEditorStack">
+          <div id="mdRendered" class="mdRendered markdown-body" contenteditable="true" spellcheck="false" data-placeholder="MD를 불러오면 실제 출력 형태로 보면서 바로 수정할 수 있습니다."></div>
+          <textarea id="transcript" class="transcript mdRaw hidden" placeholder="<<<PAGE n>>> 형식의 .md 파일을 불러오거나 직접 수정하세요. 음성 전사도 이 칸에 추가됩니다."></textarea>
+        </div>
         <div class="meta"><span id="transcriptChars">0자</span><span>전사문 자동저장</span></div>
       </section>
       <section class="notePane classNotePane">
