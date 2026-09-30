@@ -5,7 +5,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@
 const $=id=>document.getElementById(id);
 const E={shell:$('shell'),pdfInput:$('pdfInput'),emptyPdf:$('emptyPdf'),backupInput:$('backupInput'),status:$('status'),title:$('title'),filename:$('filename'),stage:$('stage'),stageInner:$('stageInner'),empty:$('empty'),pageWrap:$('pageWrap'),pdfCanvas:$('pdfCanvas'),inkCanvas:$('inkCanvas'),pinLayer:$('pinLayer'),page:$('page'),total:$('total'),pLabel:$('pLabel'),prev:$('prev'),next:$('next'),fit:$('fit'),inkColor:$('inkColor'),thin:$('thin'),thick:$('thick'),undo:$('undo'),redo:$('redo'),editor:$('editor'),chars:$('chars'),time:$('time'),mic:$('mic'),transcript:$('transcript'),transcriptChars:$('transcriptChars'),pinList:$('pinList'),docx:$('docx'),printBtn:$('printBtn'),md:$('md'),json:$('json'),toast:$('toast'),printArea:$('printArea'),layoutToggle:$('layoutToggle'),inputBadge:$('inputBadge'),viewCount:$('viewCount'),pinPopover:$('pinPopover'),pinText:$('pinText'),pinSave:$('pinSave'),pinCancel:$('pinCancel')};
 
-let db,pdfDoc=null,project=null,currentPage=1,scale=1.15,fit=true,renderTask=null,tool='pen',pageData={strokes:[],redo:[],pins:[]},saveTimer=null,recognition=null,listening=false,lineWidth=2.2,viewCount=Math.max(1,Math.min(4,Number(localStorage.getItem('lh-v4-view-count'))||1)),pendingPin=null;
+let db,pdfDoc=null,project=null,currentPage=1,scale=1.15,fit=true,renderTask=null,tool='pen',pageData={strokes:[],redo:[],pins:[]},saveTimer=null,recognition=null,listening=false,lineWidth=2.2,highlightWidth=Math.max(6,Math.min(40,Number(localStorage.getItem('lh-v4-highlight-width'))||18)),viewCount=Math.max(1,Math.min(4,Number(localStorage.getItem('lh-v4-view-count'))||1)),pendingPin=null;
 let stylusPointerId=null,stylusDrawing=false,currentStroke=null,lastStylusPoint=null;
 let touchState={mode:null,startTime:0,startX:0,startY:0,lastX:0,lastY:0,moved:false,initialDistance:0,initialScale:1,midX:0,midY:0};
 let penPointerSeenUntil=0,renderGeneration=0;
@@ -73,9 +73,9 @@ function drawStroke(stroke){
     ctx.globalCompositeOperation='source-over';
     ctx.strokeStyle=stroke.color||'#facc15';
     ctx.globalAlpha=.25;
-    ctx.lineWidth=18;
+    ctx.lineWidth=stroke.width||18;
     if(pts.length===1){
-      ctx.beginPath();ctx.fillStyle=ctx.strokeStyle;ctx.arc(pts[0].x,pts[0].y,9,0,Math.PI*2);ctx.fill();ctx.restore();return;
+      ctx.beginPath();ctx.fillStyle=ctx.strokeStyle;ctx.arc(pts[0].x,pts[0].y,(stroke.width||18)/2,0,Math.PI*2);ctx.fill();ctx.restore();return;
     }
     ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
     for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
@@ -102,7 +102,7 @@ function eraseAt(pt){const radius=Math.max(.012,(lineWidth*3)/(Math.max(E.inkCan
 
 function beginStylus(clientX,clientY,pressure,id='touch-stylus'){
   if(!project||tool==='pin')return;if(tool==='erase'){stylusDrawing=true;stylusPointerId=id;eraseAt(pagePointFromClient(clientX,clientY,pressure));return}
-  stylusDrawing=true;stylusPointerId=id;currentStroke={id:`s-${Date.now()}-${Math.random().toString(36).slice(2)}`,tool,color:E.inkColor.value,width:tool==='highlight'?18:lineWidth,points:[pagePointFromClient(clientX,clientY,pressure)]};lastStylusPoint=currentStroke.points[0];
+  stylusDrawing=true;stylusPointerId=id;currentStroke={id:`s-${Date.now()}-${Math.random().toString(36).slice(2)}`,tool,color:E.inkColor.value,width:tool==='highlight'?highlightWidth:lineWidth,points:[pagePointFromClient(clientX,clientY,pressure)]};lastStylusPoint=currentStroke.points[0];
 }
 function continueStylus(clientX,clientY,pressure){if(!stylusDrawing)return;const pt=pagePointFromClient(clientX,clientY,pressure);if(tool==='erase'){eraseAt(pt);return}if(!currentStroke)return;const dx=pt.x-(lastStylusPoint?.x??pt.x),dy=pt.y-(lastStylusPoint?.y??pt.y);if(dx*dx+dy*dy<0.0000004)return;currentStroke.points.push(pt);lastStylusPoint=pt;drawLiveSegment(currentStroke)}
 function endStylus(){
@@ -179,7 +179,7 @@ async function goPage(p){if(!pdfDoc)return;await Promise.all([saveNote(),saveTra
 E.prev.onclick=()=>goPage(currentPage-1);E.next.onclick=()=>goPage(currentPage+1);E.page.onchange=()=>goPage(Number(E.page.value)||currentPage);E.fit.onclick=()=>{fit=true;renderPage()};window.addEventListener('resize',()=>{if(fit&&pdfDoc)requestScaleRender()});
 
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{tool=b.dataset.tool;document.querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('active',x===b));E.inputBadge.textContent=tool==='pin'?'📌 탭해서 핀 추가':tool==='erase'?'⌫ Pencil로 지우기':'✏️ Pencil · 👆 손가락 이동'});
-E.thin.onclick=()=>{lineWidth=clamp(lineWidth-.5,.8,8);toast(`굵기 ${lineWidth.toFixed(1)}`)};E.thick.onclick=()=>{lineWidth=clamp(lineWidth+.5,.8,8);toast(`굵기 ${lineWidth.toFixed(1)}`)};
+E.thin.onclick=()=>{if(tool==='highlight'){highlightWidth=clamp(highlightWidth-2,6,40);localStorage.setItem('lh-v4-highlight-width',String(highlightWidth));toast(`형광펜 굵기 ${highlightWidth}`)}else{lineWidth=clamp(lineWidth-.5,.8,8);toast(`펜 굵기 ${lineWidth.toFixed(1)}`)}};E.thick.onclick=()=>{if(tool==='highlight'){highlightWidth=clamp(highlightWidth+2,6,40);localStorage.setItem('lh-v4-highlight-width',String(highlightWidth));toast(`형광펜 굵기 ${highlightWidth}`)}else{lineWidth=clamp(lineWidth+.5,.8,8);toast(`펜 굵기 ${lineWidth.toFixed(1)}`)}};
 E.undo.onclick=()=>{const s=pageData.strokes.pop();if(s){pageData.redo.push(s);drawAllStrokes();scheduleSave()}};E.redo.onclick=()=>{const s=pageData.redo.pop();if(s){pageData.strokes.push(s);drawAllStrokes();scheduleSave()}};
 E.editor.addEventListener('input',()=>{E.chars.textContent=`${E.editor.value.length}자`;scheduleSave()});E.transcript.addEventListener('input',()=>{E.transcriptChars.textContent=`${E.transcript.value.length}자`;scheduleSave()});E.title.addEventListener('input',scheduleSave);document.querySelectorAll('[data-tag]').forEach(b=>b.onclick=()=>insertText(b.dataset.tag));E.time.onclick=()=>insertText(`[${nowTime()}] `);E.viewCount.value=String(viewCount);E.viewCount.onchange=()=>{viewCount=Math.max(1,Math.min(4,Number(E.viewCount.value)||1));localStorage.setItem('lh-v4-view-count',String(viewCount));fit=true;if(pdfDoc)renderPage()};
 function insertText(t){const a=E.editor.selectionStart,b=E.editor.selectionEnd,v=E.editor.value;E.editor.value=v.slice(0,a)+t+v.slice(b);E.editor.focus();E.editor.selectionStart=E.editor.selectionEnd=a+t.length;E.editor.dispatchEvent(new Event('input'))}
@@ -192,8 +192,8 @@ function drawStrokeToContext(ctx,stroke,renderScale=1){
   const pts=stroke.points||[];if(!pts.length)return;
   ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=stroke.color||'#e11d48';
   if(stroke.tool==='highlight'){
-    ctx.globalCompositeOperation='source-over';ctx.globalAlpha=.25;ctx.lineWidth=18*renderScale;
-    if(pts.length===1){ctx.beginPath();ctx.fillStyle=ctx.strokeStyle;ctx.arc(pts[0].x,pts[0].y,9*renderScale,0,Math.PI*2);ctx.fill();ctx.restore();return;}
+    ctx.globalCompositeOperation='source-over';ctx.globalAlpha=.25;ctx.lineWidth=(stroke.width||18)*renderScale;
+    if(pts.length===1){ctx.beginPath();ctx.fillStyle=ctx.strokeStyle;ctx.arc(pts[0].x,pts[0].y,((stroke.width||18)*renderScale)/2,0,Math.PI*2);ctx.fill();ctx.restore();return;}
     ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
     for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
     ctx.stroke();ctx.restore();return;
