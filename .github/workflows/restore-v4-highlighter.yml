@@ -18,6 +18,8 @@ jobs:
           python-version: '3.12'
       - name: Apply V4 patch
         run: python tools/restore_v4_highlighter.py
+      - name: Validate JavaScript syntax
+        run: node --check v4/app.js
       - name: Commit patch
         run: |
           git config user.name "github-actions[bot]"
