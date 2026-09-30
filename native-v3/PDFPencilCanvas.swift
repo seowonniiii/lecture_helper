@@ -133,7 +133,7 @@ final class PDFInkPageView: UIView, UIScrollViewDelegate, PKCanvasViewDelegate {
         let size = CGSize(width: max(box.width, 1), height: max(box.height, 1))
         let format = UIGraphicsImageRendererFormat.default()
         format.opaque = true
-        format.scale = UIScreen.main.scale
+        format.scale = max(traitCollection.displayScale, 1.0)
 
         return UIGraphicsImageRenderer(size: size, format: format).image { renderer in
             let ctx = renderer.cgContext
