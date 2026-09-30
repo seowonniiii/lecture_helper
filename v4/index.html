@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#111827">
+<title>Lecture Helper V4</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><div class="logo">LH</div><div><b>Lecture Helper <span style="color:#7c3aed">V4</span></b><small id="status">PDF를 열어주세요</small></div></div>
+  <div class="actions"><label class="btn primary">PDF 열기<input id="pdfInput" type="file" accept="application/pdf" hidden></label><label class="btn backup">백업 복원<input id="backupInput" type="file" accept="application/json" hidden></label></div>
+</header>
+<main id="shell" class="shell">
+  <section class="viewer">
+    <div class="toolbar">
+      <div class="nav"><button id="prev" class="btn">‹ 이전</button><input id="page" type="number" min="1" value="1"><span>/ <b id="total">0</b></span><button id="next" class="btn">다음 ›</button></div>
+      <div class="titleline"><input id="title" class="title" placeholder="강의 제목"><span id="inputBadge" class="badge">✏️ Pencil · 👆 손가락 이동</span><button id="layoutToggle" class="tool layout-toggle">코멘트 ↓</button></div>
+      <div class="toolrow"><button class="tool active" data-tool="pen">✏️ 펜</button><button class="tool" data-tool="highlight">🖍 형광펜</button><button class="tool" data-tool="erase">⌫ 지우개</button><button class="tool" data-tool="pin">📌 핀</button><input id="inkColor" class="color" type="color" value="#e11d48"><button id="thin" class="tool">−</button><button id="thick" class="tool">＋</button><button id="undo" class="tool">↶</button><button id="redo" class="tool">↷</button><button id="fit" class="tool">맞춤</button></div>
+    </div>
+    <div id="stage" class="stage"><div id="stageInner" class="stageInner"><div id="empty" class="empty"><div style="font-size:44px">✍️</div><h1>Apple Pencil로 바로 필기하세요</h1><p>Pencil은 필기 전용, 손가락 한 개는 이동, 두 손가락은 확대·축소. 좌우 가장자리를 짧게 탭하면 페이지가 넘어갑니다.</p><label class="btn primary">PDF 선택<input id="emptyPdf" type="file" accept="application/pdf" hidden></label></div><div id="pageWrap" class="pagewrap hidden"><canvas id="pdfCanvas" class="pdf"></canvas><canvas id="inkCanvas" class="ink"></canvas><div class="edgeHint left"></div><div class="edgeHint right"></div><div id="pinLayer" class="pinlayer"></div></div></div></div>
+    <div class="filebar"><div id="filename" class="file"></div></div>
+  </section>
+  <aside class="notes"><div class="nhead"><div><small style="color:#6b7280;font-weight:800">PAGE NOTE</small><h2><span id="pLabel">1</span>p.</h2></div><button id="mic" class="btn">🎤</button></div><div class="tags"><button class="tag exam" data-tag="[시험] ">시험</button><button class="tag important" data-tag="[중요] ">중요</button><button class="tag prof" data-tag="[교수설명] ">교수설명</button><button class="tag question" data-tag="[질문] ">질문</button><button id="time" class="tag">시간</button></div><textarea id="editor" class="editor" placeholder="이 페이지에 대한 코멘트를 입력하세요."></textarea><div class="meta"><span id="chars">0자</span><span>텍스트·필기 자동저장</span></div><div class="pinsbox"><b>📌 이 페이지 코멘트 핀</b><div id="pinList" class="pinlist"></div></div><div class="exports"><button id="docx">Word<br><small>필기 포함</small></button><button id="printBtn">PDF<br><small>필기 포함</small></button><button id="md">Markdown<br><small>AI 전달용</small></button><button id="json">JSON<br><small>전체 백업</small></button></div></aside>
+</main>
+<div id="toast" class="toast"></div><section id="printArea" class="print"></section>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
