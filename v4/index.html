@@ -22,7 +22,27 @@
     <div id="stage" class="stage"><div id="stageInner" class="stageInner"><div id="empty" class="empty"><div style="font-size:44px">✍️</div><h1>Apple Pencil로 바로 필기하세요</h1><p>Pencil은 필기 전용, 손가락 한 개는 이동, 두 손가락은 확대·축소. 좌우 가장자리를 짧게 탭하면 페이지가 넘어갑니다.</p><label class="btn primary">PDF 선택<input id="emptyPdf" type="file" accept="application/pdf" hidden></label></div><div id="pageWrap" class="pagewrap hidden"><canvas id="pdfCanvas" class="pdf"></canvas><canvas id="inkCanvas" class="ink"></canvas><div class="edgeHint left"></div><div class="edgeHint right"></div><div id="pinLayer" class="pinlayer"></div></div></div></div>
     <div class="filebar"><div id="filename" class="file"></div></div>
   </section>
-  <aside class="notes"><div class="nhead"><div><small style="color:#6b7280;font-weight:800">PAGE NOTE</small><h2><span id="pLabel">1</span>p.</h2></div></div><div class="tags"><button class="tag exam" data-tag="[시험] ">시험</button><button class="tag important" data-tag="[중요] ">중요</button><button class="tag prof" data-tag="[교수설명] ">교수설명</button><button class="tag question" data-tag="[질문] ">질문</button><button id="time" class="tag">시간</button></div><textarea id="editor" class="editor" placeholder="이 페이지에 대한 코멘트를 입력하세요."></textarea><div class="meta"><span id="chars">0자</span><span>코멘트·필기 자동저장</span></div><section class="transcriptbox"><div class="transcripthead"><div><b>🎙 실시간 전사</b><small>코멘트와 별도로 저장됨</small></div><button id="mic" class="btn micbtn">🎤 시작</button></div><textarea id="transcript" class="transcript" placeholder="음성 전사 내용이 이곳에 별도로 쌓입니다."></textarea><div class="meta"><span id="transcriptChars">0자</span><span>페이지별 자동저장</span></div></section><div class="pinsbox"><b>📌 이 페이지 코멘트 핀</b><div id="pinList" class="pinlist"></div></div><div class="exports"><button id="docx">Word<br><small>A4 4쪽 배치</small></button><button id="printBtn">PDF<br><small>A4 4쪽 배치</small></button><button id="md">Markdown<br><small>코멘트+전사</small></button><button id="json">JSON<br><small>전체 백업</small></button></div></aside>
+  <aside class="notes">
+    <div class="nhead"><div><small style="color:#6b7280;font-weight:800">PAGE NOTE</small><h2><span id="pLabel">1</span>p.</h2></div></div>
+    <div class="noteSplit">
+      <section class="notePane transcriptPane">
+        <div class="paneHead">
+          <div><b>📄 .md / 전사문</b><small id="mdFilename">페이지별 전사문 · 수정 가능</small></div>
+          <div class="paneActions"><label class="btn mdload">MD 불러오기<input id="mdInput" type="file" accept=".md,text/markdown,text/plain" hidden></label><button id="mic" class="btn micbtn">🎤 시작</button></div>
+        </div>
+        <textarea id="transcript" class="transcript" placeholder="<<<PAGE n>>> 형식의 .md 파일을 불러오거나 직접 수정하세요. 음성 전사도 이 칸에 추가됩니다."></textarea>
+        <div class="meta"><span id="transcriptChars">0자</span><span>전사문 자동저장</span></div>
+      </section>
+      <section class="notePane classNotePane">
+        <div class="paneHead"><div><b>✍️ 수업 필기</b><small>기존 Page Note 그대로 유지</small></div></div>
+        <div class="tags"><button class="tag exam" data-tag="[시험] ">시험</button><button class="tag important" data-tag="[중요] ">중요</button><button class="tag prof" data-tag="[교수설명] ">교수설명</button><button class="tag question" data-tag="[질문] ">질문</button><button id="time" class="tag">시간</button></div>
+        <textarea id="editor" class="editor" placeholder="이 페이지의 수업 필기를 입력하세요."></textarea>
+        <div class="meta"><span id="chars">0자</span><span>수업 필기 자동저장</span></div>
+      </section>
+    </div>
+    <div class="pinsbox"><b>📌 이 페이지 코멘트 핀</b><div id="pinList" class="pinlist"></div></div>
+    <div class="exports"><button id="docx">Word<br><small>A4 4쪽 배치</small></button><button id="printBtn">PDF<br><small>A4 4쪽 배치</small></button><button id="md">Markdown<br><small>전사문+수업 필기</small></button><button id="json">JSON<br><small>전체 백업</small></button></div>
+  </aside>
 </main>
 <div id="pinPopover" class="pinpopover hidden"><textarea id="pinText" placeholder="이 위치에 짧은 코멘트"></textarea><div class="pinactions"><button id="pinCancel" class="tool">취소</button><button id="pinSave" class="btn primary">저장</button></div></div>
 <div id="toast" class="toast"></div><section id="printArea" class="print"></section>

@@ -3,7 +3,7 @@ import {Document,Packer,Paragraph,TextRun,HeadingLevel,ImageRun,PageBreak,Alignm
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs';
 
 const $=id=>document.getElementById(id);
-const E={shell:$('shell'),pdfInput:$('pdfInput'),emptyPdf:$('emptyPdf'),backupInput:$('backupInput'),status:$('status'),title:$('title'),filename:$('filename'),stage:$('stage'),stageInner:$('stageInner'),empty:$('empty'),pageWrap:$('pageWrap'),pdfCanvas:$('pdfCanvas'),inkCanvas:$('inkCanvas'),pinLayer:$('pinLayer'),page:$('page'),total:$('total'),pLabel:$('pLabel'),prev:$('prev'),next:$('next'),fit:$('fit'),inkColor:$('inkColor'),thin:$('thin'),thick:$('thick'),undo:$('undo'),redo:$('redo'),editor:$('editor'),chars:$('chars'),time:$('time'),mic:$('mic'),transcript:$('transcript'),transcriptChars:$('transcriptChars'),pinList:$('pinList'),docx:$('docx'),printBtn:$('printBtn'),md:$('md'),json:$('json'),toast:$('toast'),printArea:$('printArea'),layoutToggle:$('layoutToggle'),inputBadge:$('inputBadge'),viewCount:$('viewCount'),pinPopover:$('pinPopover'),pinText:$('pinText'),pinSave:$('pinSave'),pinCancel:$('pinCancel')};
+const E={shell:$('shell'),pdfInput:$('pdfInput'),emptyPdf:$('emptyPdf'),backupInput:$('backupInput'),status:$('status'),title:$('title'),filename:$('filename'),stage:$('stage'),stageInner:$('stageInner'),empty:$('empty'),pageWrap:$('pageWrap'),pdfCanvas:$('pdfCanvas'),inkCanvas:$('inkCanvas'),pinLayer:$('pinLayer'),page:$('page'),total:$('total'),pLabel:$('pLabel'),prev:$('prev'),next:$('next'),fit:$('fit'),inkColor:$('inkColor'),thin:$('thin'),thick:$('thick'),undo:$('undo'),redo:$('redo'),editor:$('editor'),chars:$('chars'),time:$('time'),mic:$('mic'),transcript:$('transcript'),transcriptChars:$('transcriptChars'),pinList:$('pinList'),docx:$('docx'),printBtn:$('printBtn'),md:$('md'),json:$('json'),toast:$('toast'),printArea:$('printArea'),layoutToggle:$('layoutToggle'),inputBadge:$('inputBadge'),viewCount:$('viewCount'),mdInput:$('mdInput'),mdFilename:$('mdFilename'),pinPopover:$('pinPopover'),pinText:$('pinText'),pinSave:$('pinSave'),pinCancel:$('pinCancel')};
 
 let db,pdfDoc=null,project=null,currentPage=1,scale=1.15,fit=true,renderTask=null,tool='pen',pageData={strokes:[],redo:[],pins:[]},saveTimer=null,recognition=null,listening=false,lineWidth=2.2,highlightWidth=Math.max(6,Math.min(40,Number(localStorage.getItem('lh-v4-highlight-width'))||18)),viewCount=Math.max(1,Math.min(4,Number(localStorage.getItem('lh-v4-view-count'))||1)),pendingPin=null;
 let stylusPointerId=null,stylusDrawing=false,currentStroke=null,lastStylusPoint=null;
@@ -184,6 +184,54 @@ E.undo.onclick=()=>{const s=pageData.strokes.pop();if(s){pageData.redo.push(s);d
 E.editor.addEventListener('input',()=>{E.chars.textContent=`${E.editor.value.length}자`;scheduleSave()});E.transcript.addEventListener('input',()=>{E.transcriptChars.textContent=`${E.transcript.value.length}자`;scheduleSave()});E.title.addEventListener('input',scheduleSave);document.querySelectorAll('[data-tag]').forEach(b=>b.onclick=()=>insertText(b.dataset.tag));E.time.onclick=()=>insertText(`[${nowTime()}] `);E.viewCount.value=String(viewCount);E.viewCount.onchange=()=>{viewCount=Math.max(1,Math.min(4,Number(E.viewCount.value)||1));localStorage.setItem('lh-v4-view-count',String(viewCount));fit=true;if(pdfDoc)renderPage()};
 function insertText(t){const a=E.editor.selectionStart,b=E.editor.selectionEnd,v=E.editor.value;E.editor.value=v.slice(0,a)+t+v.slice(b);E.editor.focus();E.editor.selectionStart=E.editor.selectionEnd=a+t.length;E.editor.dispatchEvent(new Event('input'))}
 E.layoutToggle.onclick=()=>{E.shell.classList.toggle('notes-bottom');const bottom=E.shell.classList.contains('notes-bottom');E.layoutToggle.textContent=bottom?'코멘트 →':'코멘트 ↓';setTimeout(()=>pdfDoc&&renderPage(),80)};
+
+function cleanImportedMdBody(body,pageNo){
+  let s=(body||'').trim();
+  s=s.replace(new RegExp(`^\\s*${pageNo}\\s*p\\.\\s*`,'i'),'').trim();
+  const own=s.match(/###\\s*(?:\\.md\\s*\\/?\\s*전사문|실시간\\s*전사|전사문)[^\\n]*\\n([\\s\\S]*?)(?=\\n###\\s|$)/i);
+  return (own?own[1]:s).trim();
+}
+function parseMarkdownPages(text){
+  const src=String(text||'');
+  const markers=[...src.matchAll(/<<<PAGE\\s+(\\d+)>>>/gi)];
+  const out=[];
+  if(markers.length){
+    for(let i=0;i<markers.length;i++){
+      const page=Number(markers[i][1]);
+      const from=markers[i].index+markers[i][0].length;
+      const to=i+1<markers.length?markers[i+1].index:src.length;
+      out.push({page,text:cleanImportedMdBody(src.slice(from,to),page)});
+    }
+    return out;
+  }
+  const headings=[...src.matchAll(/^\\s*(?:#{1,6}\\s*)?(\\d+)\\s*p\\.\\s*$/gmi)];
+  if(headings.length){
+    for(let i=0;i<headings.length;i++){
+      const page=Number(headings[i][1]);
+      const from=headings[i].index+headings[i][0].length;
+      const to=i+1<headings.length?headings[i+1].index:src.length;
+      out.push({page,text:cleanImportedMdBody(src.slice(from,to),page)});
+    }
+    return out;
+  }
+  return [{page:currentPage,text:src.trim()}];
+}
+async function importMarkdownFile(file){
+  if(!project||!pdfDoc){toast('먼저 PDF를 열어주세요');return}
+  const text=await file.text();
+  const sections=parseMarkdownPages(text);
+  let count=0,ignored=0;
+  for(const section of sections){
+    const page=Number(section.page);
+    if(!Number.isInteger(page)||page<1||page>pdfDoc.numPages){ignored++;continue}
+    await put(TS,{key:`${project.id}:${page}`,projectId:project.id,page,text:section.text||'',source:'md',sourceName:file.name,updated:Date.now()});
+    count++;
+  }
+  E.mdFilename.textContent=`${file.name} · ${count}페이지 연결됨`;
+  await renderPage();
+  toast(`MD 전사문 ${count}페이지 불러옴 · 수업 필기 유지${ignored?` · ${ignored}페이지 제외`:''}`);
+}
+E.mdInput.onchange=async e=>{const f=e.target.files?.[0];if(!f)return;try{await importMarkdownFile(f)}catch(err){console.error(err);toast('MD 파일을 읽지 못했습니다')}finally{e.target.value=''}};
 
 function setupMic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){E.mic.disabled=true;return}recognition=new SR();recognition.lang='ko-KR';recognition.continuous=true;recognition.interimResults=false;recognition.onresult=e=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)t+=e.results[i][0].transcript+' ';if(t.trim()){const q=E.transcript.value&&!E.transcript.value.endsWith('\n')?'\n':'';E.transcript.value+=`${q}[${nowTime()}] ${t.trim()}\n`;E.transcript.dispatchEvent(new Event('input'))}};recognition.onend=()=>{listening=false;E.mic.textContent='🎤 시작';E.mic.classList.remove('listening')};E.mic.onclick=()=>{if(listening){recognition.stop();return}try{recognition.start();listening=true;E.mic.textContent='⏹ 중지';E.mic.classList.add('listening')}catch{}}}
 
