@@ -6,27 +6,47 @@ struct ContentView: View {
     @State private var showingImporter = false
     @State private var notesAtBottom = false
     @State private var importError: String?
+    @FocusState private var noteEditorFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             topBar
             Divider()
 
-            if store.document == nil {
-                emptyState
-            } else if notesAtBottom {
-                VStack(spacing: 0) {
-                    lecturePane
-                    Divider()
-                    notesPane
-                        .frame(minHeight: 260, idealHeight: 320, maxHeight: 380)
-                }
-            } else {
-                HStack(spacing: 0) {
-                    lecturePane
-                    Divider()
-                    notesPane
-                        .frame(width: 360)
+            GeometryReader { proxy in
+                if store.document == nil {
+                    emptyState
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                } else if notesAtBottom {
+                    VStack(spacing: 0) {
+                        lecturePane
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        Divider()
+
+                        notesPane
+                            .frame(
+                                height: min(
+                                    max(proxy.size.height * 0.32, 220),
+                                    300
+                                )
+                            )
+                    }
+                } else {
+                    HStack(spacing: 0) {
+                        lecturePane
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        Divider()
+
+                        notesPane
+                            .frame(
+                                width: min(
+                                    max(proxy.size.width * 0.28, 260),
+                                    320
+                                )
+                            )
+                    }
                 }
             }
         }
@@ -50,11 +70,20 @@ struct ContentView: View {
         } message: {
             Text(importError ?? "알 수 없는 오류")
         }
+        .onChange(of: noteEditorFocused) { _, focused in
+            if focused {
+                NotificationCenter.default.post(
+                    name: .lectureHelperNoteEditingBegan,
+                    object: nil
+                )
+            }
+        }
     }
 
     private var topBar: some View {
         HStack(spacing: 12) {
             Button {
+                noteEditorFocused = false
                 showingImporter = true
             } label: {
                 Label("PDF 열기", systemImage: "doc.badge.plus")
@@ -64,6 +93,7 @@ struct ContentView: View {
             Spacer()
 
             Button {
+                noteEditorFocused = false
                 store.goPrevious()
             } label: {
                 Image(systemName: "chevron.left")
@@ -76,6 +106,7 @@ struct ContentView: View {
                 .frame(minWidth: 90)
 
             Button {
+                noteEditorFocused = false
                 store.goNext()
             } label: {
                 Image(systemName: "chevron.right")
@@ -86,6 +117,7 @@ struct ContentView: View {
             Spacer()
 
             Button {
+                noteEditorFocused = false
                 withAnimation(.easeInOut(duration: 0.18)) {
                     notesAtBottom.toggle()
                 }
@@ -120,23 +152,23 @@ struct ContentView: View {
     }
 
     private var notesPane: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text("PAGE NOTE")
                         .font(.caption2.bold())
                         .foregroundStyle(.secondary)
                     Text("\(store.currentPage + 1)p.")
-                        .font(.title2.bold())
+                        .font(.title3.bold())
                 }
                 Spacer()
                 Text("자동저장")
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 7) {
+                HStack(spacing: 6) {
                     tagButton("시험", text: "[시험] ", tint: .red)
                     tagButton("중요", text: "[중요] ", tint: .orange)
                     tagButton("교수설명", text: "[교수설명] ", tint: .blue)
@@ -148,31 +180,44 @@ struct ContentView: View {
                 get: { store.noteBindingText(for: store.currentPage) },
                 set: { store.setNote($0, for: store.currentPage) }
             ))
+            .focused($noteEditorFocused)
             .font(.body)
-            .padding(8)
+            .padding(6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .scrollContentBackground(.hidden)
             .background(Color(uiColor: .secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 10)
                     .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
             )
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    NotificationCenter.default.post(
+                        name: .lectureHelperNoteEditingBegan,
+                        object: nil
+                    )
+                    noteEditorFocused = true
+                }
+            )
 
-            Text("Apple Pencil 필기는 페이지별로 자동 저장됨")
+            Text("Apple Pencil 필기는 페이지별 자동저장")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-        .padding(14)
+        .padding(10)
         .background(Color(uiColor: .systemBackground))
     }
 
     private func tagButton(_ title: String, text: String, tint: Color) -> some View {
         Button(title) {
             store.appendTag(text, to: store.currentPage)
+            noteEditorFocused = true
         }
         .buttonStyle(.bordered)
         .tint(tint)
-        .controlSize(.small)
+        .controlSize(.mini)
     }
 
     private var emptyState: some View {
