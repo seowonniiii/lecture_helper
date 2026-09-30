@@ -56,7 +56,6 @@ def inject_common(path: str, version: str, renderer: str):
 }}
 '''
         s = s.replace('</script>', js + '\n</script>', 1)
-
     p.write_text(s, encoding='utf-8')
 
 inject_common('v1/index.html', 'V1', 'render()')
@@ -84,34 +83,77 @@ E.canvas.addEventListener('pointerup',ev=>{
     s = s.replace('</script>', js + '\n</script>', 1)
 p.write_text(s, encoding='utf-8')
 
-# V2: Apple Pencil-only drawing, finger scroll + edge tap navigation.
+# V2: robust Pencil detection + manual finger pan + narrow edge tap navigation.
 p = Path('v2/index.html')
 s = p.read_text(encoding='utf-8')
-s = s.replace('.ink{position:absolute;left:0;top:0;touch-action:none}', '.ink{position:absolute;left:0;top:0;touch-action:pan-x pan-y}', 1)
-old = "E.inkCanvas.addEventListener('pointerdown',async ev=>{if(tool==='pin'){"
-new = "E.inkCanvas.addEventListener('pointerdown',async ev=>{if(ev.pointerType!=='pen'){v2FingerStart={x:ev.clientX,y:ev.clientY,t:Date.now()};return}if(tool==='pin'){"
-if old in s:
-    s = s.replace(old, new, 1)
 
-# Prevent non-Pencil pointermove/up from entering drawing logic.
-s = s.replace("E.inkCanvas.addEventListener('pointermove',ev=>{if(!drawing||!currentStroke)return;", "E.inkCanvas.addEventListener('pointermove',ev=>{if(ev.pointerType!=='pen'||!drawing||!currentStroke)return;", 1)
-s = s.replace("async function endDraw(ev){if(!drawing||!currentStroke)return;", "async function endDraw(ev){if(ev&&ev.pointerType!=='pen')return;if(!drawing||!currentStroke)return;", 1)
+# Prevent Safari from stealing Pencil strokes; finger panning is handled manually below.
+s = s.replace('.ink{position:absolute;left:0;top:0;touch-action:pan-x pan-y}', '.ink{position:absolute;left:0;top:0;touch-action:none}', 1)
+s = s.replace('.ink{position:absolute;left:0;top:0;touch-action:auto}', '.ink{position:absolute;left:0;top:0;touch-action:none}', 1)
 
-if '// V2 Apple Pencil only + finger edge navigation' not in s:
-    js = r'''
+old_pointerdown = "E.inkCanvas.addEventListener('pointerdown',async ev=>{if(ev.pointerType!=='pen'){v2FingerStart={x:ev.clientX,y:ev.clientY,t:Date.now()};return}if(tool==='pin'){"
+new_pointerdown = "E.inkCanvas.addEventListener('pointerdown',async ev=>{if(!isStylusPointer(ev)){const r=E.inkCanvas.getBoundingClientRect();v2FingerStart={x:ev.clientX,y:ev.clientY,t:Date.now(),rx:(ev.clientX-r.left)/r.width,scrollLeft:E.stage.scrollLeft,scrollTop:E.stage.scrollTop,moved:false};try{E.inkCanvas.setPointerCapture(ev.pointerId)}catch{}return}if(tool==='pin'){"
+if old_pointerdown in s:
+    s = s.replace(old_pointerdown, new_pointerdown, 1)
+
+old_pointermove = "E.inkCanvas.addEventListener('pointermove',ev=>{if(ev.pointerType!=='pen'||!drawing||!currentStroke)return;currentStroke.points.push(normPos(ev));redrawInk();drawStroke(E.inkCanvas.getContext('2d'),currentStroke,E.inkCanvas.width,E.inkCanvas.height);ev.preventDefault()});"
+new_pointermove = "E.inkCanvas.addEventListener('pointermove',ev=>{if(isStylusPointer(ev)){if(!drawing||!currentStroke)return;currentStroke.points.push(normPos(ev));redrawInk();drawStroke(E.inkCanvas.getContext('2d'),currentStroke,E.inkCanvas.width,E.inkCanvas.height);ev.preventDefault();return}if(!v2FingerStart)return;const dx=ev.clientX-v2FingerStart.x,dy=ev.clientY-v2FingerStart.y;if(Math.hypot(dx,dy)>7)v2FingerStart.moved=true;E.stage.scrollLeft=v2FingerStart.scrollLeft-dx;E.stage.scrollTop=v2FingerStart.scrollTop-dy;ev.preventDefault()});"
+if old_pointermove in s:
+    s = s.replace(old_pointermove, new_pointermove, 1)
+
+old_end = "async function endDraw(ev){if(ev&&ev.pointerType!=='pen')return;if(!drawing||!currentStroke)return;"
+new_end = "async function endDraw(ev){if(ev&&!isStylusPointer(ev))return;if(!drawing||!currentStroke)return;"
+if old_end in s:
+    s = s.replace(old_end, new_end, 1)
+
+marker = '// V2 Apple Pencil only + finger edge navigation'
+if marker in s:
+    start = s.index(marker)
+    end = s.index('</script>', start)
+    replacement = r'''// V2 Apple Pencil only + finger edge navigation
+let v2FingerStart=null;
+function isStylusPointer(ev){
+  if(ev.pointerType==='pen') return true;
+  // iPad/Safari fallback: some Apple Pencil events may surface as touch-like pointers.
+  const w=Number(ev.width||99),h=Number(ev.height||99),p=Number(ev.pressure||0);
+  return ev.pointerType==='touch' && p>0 && w<=8 && h<=8;
+}
+E.inkCanvas.addEventListener('pointerup',ev=>{
+  if(isStylusPointer(ev)||!v2FingerStart||!pdfDoc)return;
+  const start=v2FingerStart;
+  v2FingerStart=null;
+  const d=Math.hypot(ev.clientX-start.x,ev.clientY-start.y),dt=Date.now()-start.t;
+  if(start.moved||d>9||dt>450)return;
+  // Only a short finger tap in the outer 10% changes page.
+  if(start.rx<.10)go(currentPage-1);
+  else if(start.rx>.90)go(currentPage+1);
+},{passive:true});
+E.inkCanvas.addEventListener('pointercancel',ev=>{
+  if(!isStylusPointer(ev))v2FingerStart=null;
+},{passive:true});
+'''
+    s = s[:start] + replacement + '\n' + s[end:]
+else:
+    replacement = r'''
 // V2 Apple Pencil only + finger edge navigation
 let v2FingerStart=null;
+function isStylusPointer(ev){
+  if(ev.pointerType==='pen') return true;
+  const w=Number(ev.width||99),h=Number(ev.height||99),p=Number(ev.pressure||0);
+  return ev.pointerType==='touch' && p>0 && w<=8 && h<=8;
+}
 E.inkCanvas.addEventListener('pointerup',ev=>{
-  if(ev.pointerType==='pen'||!v2FingerStart||!pdfDoc)return;
-  const r=E.inkCanvas.getBoundingClientRect();
-  const d=Math.hypot(ev.clientX-v2FingerStart.x,ev.clientY-v2FingerStart.y),dt=Date.now()-v2FingerStart.t,x=(ev.clientX-r.left)/r.width;
-  v2FingerStart=null;
-  if(d>14||dt>550)return;
-  if(x<.18)go(currentPage-1);else if(x>.82)go(currentPage+1);
+  if(isStylusPointer(ev)||!v2FingerStart||!pdfDoc)return;
+  const start=v2FingerStart;v2FingerStart=null;
+  const d=Math.hypot(ev.clientX-start.x,ev.clientY-start.y),dt=Date.now()-start.t;
+  if(start.moved||d>9||dt>450)return;
+  if(start.rx<.10)go(currentPage-1);else if(start.rx>.90)go(currentPage+1);
 },{passive:true});
-E.inkCanvas.addEventListener('pointercancel',ev=>{if(ev.pointerType!=='pen')v2FingerStart=null;},{passive:true});
+E.inkCanvas.addEventListener('pointercancel',ev=>{if(!isStylusPointer(ev))v2FingerStart=null;},{passive:true});
 '''
-    s = s.replace('</script>', js + '\n</script>', 1)
+    s = s.replace('</script>', replacement + '\n</script>', 1)
 
-s = s.replace('Apple Pencil·손가락·마우스로 필기하고 페이지별 코멘트와 핀을 함께 저장할 수 있어요.','Apple Pencil로 필기하고, 손가락은 스크롤·페이지 이동에 사용할 수 있어요.',1)
+# Make the UI wording match the behavior.
+s = s.replace('Apple Pencil로 필기하고, 손가락은 스크롤·페이지 이동에 사용할 수 있어요.','Apple Pencil로 필기하고, 손가락은 스크롤 및 좌우 가장자리 탭으로 페이지 이동에 사용해요.',1)
+
 p.write_text(s, encoding='utf-8')
