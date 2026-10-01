@@ -5,24 +5,26 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111827">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>HTML Pencil Annotator · Lecture Helper</title>
 <style>
 *{box-sizing:border-box}:root{--bg:#f3f4f6;--line:#d1d5db;--text:#111827;--muted:#6b7280}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif}body{display:flex;flex-direction:column}
 .topbar{flex:0 0 auto;background:rgba(255,255,255,.97);border-bottom:1px solid var(--line);padding:max(8px,env(safe-area-inset-top)) 10px 8px;backdrop-filter:blur(12px);z-index:10}.row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.row+.row{margin-top:7px}.brand{font-weight:900;margin-right:4px;white-space:nowrap}
-button,.file-label{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);border-radius:11px;padding:8px 11px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}button:hover,.file-label:hover{background:#f9fafb}button.active{background:#111827;color:#fff;border-color:#111827}button.primary{background:#2563eb;color:#fff;border-color:#2563eb}.danger{color:#b91c1c}button:disabled{opacity:.4;cursor:default}input[type=file]{display:none}.spacer{flex:1}.status{font-size:12px;color:var(--muted);min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.color-wrap{display:flex;align-items:center;gap:4px;padding:3px 5px;border:1px solid var(--line);border-radius:11px;background:#fff}input[type=color]{width:30px;height:28px;border:0;padding:0;background:transparent}input[type=range]{width:100px}.range-label{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}.check{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#374151;white-space:nowrap;padding:0 3px}.viewer-wrap{position:relative;flex:1;min-height:0;background:#cfd4dc}iframe{display:block;width:100%;height:100%;border:0;background:#fff}.empty{position:absolute;inset:0;display:grid;place-items:center;padding:30px;text-align:center;color:#6b7280;pointer-events:none}.empty strong{display:block;color:#111827;font-size:20px;margin-bottom:8px}.empty small{display:block;max-width:650px;line-height:1.6;margin-top:9px}.help{font-size:11px;color:#6b7280;line-height:1.35}
+button,.file-label{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);border-radius:11px;padding:8px 11px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}button:hover,.file-label:hover{background:#f9fafb}button.active{background:#111827;color:#fff;border-color:#111827}button.primary{background:#2563eb;color:#fff;border-color:#2563eb}.danger{color:#b91c1c}button:disabled{opacity:.4;cursor:default}input[type=file]{display:none}.spacer{flex:1}.status{font-size:12px;color:var(--muted);min-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.color-wrap{display:flex;align-items:center;gap:4px;padding:3px 5px;border:1px solid var(--line);border-radius:11px;background:#fff}input[type=color]{width:30px;height:28px;border:0;padding:0;background:transparent}input[type=range]{width:100px}.range-label{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}.check{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#374151;white-space:nowrap;padding:0 3px}.viewer-wrap{position:relative;flex:1;min-height:0;background:#cfd4dc}iframe{display:block;width:100%;height:100%;border:0;background:#fff}.empty{position:absolute;inset:0;display:grid;place-items:center;padding:30px;text-align:center;color:#6b7280;pointer-events:none}.empty strong{display:block;color:#111827;font-size:20px;margin-bottom:8px}.empty small{display:block;max-width:650px;line-height:1.6;margin-top:9px}.help{font-size:11px;color:#6b7280;line-height:1.35}
 @media(max-width:760px){.topbar{padding-left:7px;padding-right:7px}.brand{width:100%}.status{order:20;width:100%}.spacer{display:none}button,.file-label{padding:7px 9px;font-size:12px}.row{gap:5px}.help{display:none}input[type=range]{width:78px}}
 </style>
 </head>
 <body>
 <header class="topbar">
   <div class="row">
-    <div class="brand">✏️ HTML Pencil Annotator</div>
+    <div class="brand">✏️ HTML Pencil Annotator · FIX 4</div>
     <label class="file-label" for="fileInput">HTML 열기</label>
     <input id="fileInput" type="file" accept="text/html,.html,.htm">
     <button id="saveBtn" class="primary" disabled>필기 포함 HTML 저장</button>
     <button id="homeBtn">← Main</button>
-    <div class="spacer"></div><div id="status" class="status">HTML 파일을 열어주세요. · FIX 3</div>
+    <div class="spacer"></div><div id="status" class="status">FIX 4 · HTML 파일을 열어주세요.</div>
   </div>
   <div class="row">
     <button data-tool="hand" class="active">✋ 스크롤/클릭</button>
@@ -33,29 +35,32 @@ button,.file-label{appearance:none;border:1px solid var(--line);background:#fff;
     <span class="range-label">굵기 <b id="widthValue">4</b></span><input id="width" type="range" min="1" max="30" step="1" value="4">
     <label class="check"><input id="fingerDraw" type="checkbox"> 손가락도 그리기</label>
     <button id="undoBtn" disabled>↶ Undo</button><button id="redoBtn" disabled>↷ Redo</button><button id="clearBtn" class="danger" disabled>전체 필기 삭제</button>
-    <span class="help">FIX 3 · 원본 HTML 파일 자체를 그대로 로드 · 내부 목차는 현재 문서 안에서만 이동</span>
+    <span class="help">원본 HTML JavaScript 실행 · #목차 링크는 현재 문서 안에서만 이동</span>
   </div>
 </header>
 <main class="viewer-wrap">
   <iframe id="viewer" sandbox="allow-same-origin allow-scripts" title="HTML preview"></iframe>
-  <div id="empty" class="empty"><div><strong>HTML 파일 위에 바로 필기</strong>사진을 JavaScript로 삽입하는 단일 HTML도 그대로 실행합니다.<small>네 자습서처럼 IMG 데이터가 HTML 안에 있고 script가 img.src를 채우는 구조를 지원합니다.</small></div></div>
+  <div id="empty" class="empty"><div><strong>HTML 파일 위에 바로 필기</strong>JavaScript가 사진을 채우는 단일 HTML도 지원합니다.<small>네 자습서의 IMG[data-k] 방식도 실행되도록 수정한 버전입니다.</small></div></div>
 </main>
 <script>
 (()=>{
-const $=id=>document.getElementById(id),viewer=$('viewer'),fileInput=$('fileInput'),saveBtn=$('saveBtn'),status=$('status'),empty=$('empty'),colorInput=$('color'),widthInput=$('width'),widthValue=$('widthValue'),fingerDraw=$('fingerDraw'),undoBtn=$('undoBtn'),redoBtn=$('redoBtn'),clearBtn=$('clearBtn');
-let tool='hand',fileName='document.html',storageKey='',svg=null,drawing=false,activePath=null,points=[],history=[],historyIndex=-1,resizeObserver=null,currentURL='';
-$('homeBtn').onclick=()=>location.href='../';widthInput.oninput=()=>widthValue.textContent=widthInput.value;document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));fingerDraw.onchange=syncInteractionMode;
+const $=id=>document.getElementById(id);
+const viewer=$('viewer'),fileInput=$('fileInput'),saveBtn=$('saveBtn'),status=$('status'),empty=$('empty'),colorInput=$('color'),widthInput=$('width'),widthValue=$('widthValue'),fingerDraw=$('fingerDraw'),undoBtn=$('undoBtn'),redoBtn=$('redoBtn'),clearBtn=$('clearBtn');
+let tool='hand',fileName='document.html',storageKey='',svg=null,drawing=false,activePath=null,points=[],history=[],historyIndex=-1,resizeObserver=null;
+$('homeBtn').onclick=()=>location.href='../';
+widthInput.oninput=()=>widthValue.textContent=widthInput.value;
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+fingerDraw.onchange=syncInteractionMode;
 function setTool(next){tool=next;document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));syncInteractionMode();if(svg)status.textContent=tool==='hand'?'스크롤/클릭 모드':`${tool==='pen'?'펜':tool==='highlighter'?'형광펜':'지우개'} 모드`}
 function syncInteractionMode(){if(!svg)return;if(tool==='hand'){svg.style.pointerEvents='none';svg.style.touchAction='auto'}else{svg.style.pointerEvents='auto';svg.style.touchAction=fingerDraw.checked?'none':'pan-x pan-y pinch-zoom'}}
-fileInput.onchange=e=>{const f=e.target.files?.[0];if(!f)return;loadFile(f)};
-function loadFile(file){
+fileInput.onchange=async e=>{const f=e.target.files?.[0];if(!f)return;await loadFile(f)};
+async function loadFile(file){
   try{
-    if(currentURL){URL.revokeObjectURL(currentURL);currentURL=''}
     fileName=file.name||'document.html';storageKey=`lh-html-annotator:${file.name}:${file.size}:${file.lastModified}`;
-    status.textContent=`${fileName} 원본 그대로 여는 중…`;
-    currentURL=URL.createObjectURL(file);
+    status.textContent=`FIX 4 · ${fileName} 읽는 중…`;
+    const text=await file.text();
     viewer.onload=()=>setupViewer();
-    viewer.src=currentURL;
+    viewer.srcdoc=text;
   }catch(err){console.error(err);status.textContent='HTML 파일을 열지 못했습니다.'}
 }
 function setupViewer(){
@@ -64,43 +69,50 @@ function setupViewer(){
   const old=doc.getElementById('lh-annotation-layer');let existing='';if(old){existing=[...old.querySelectorAll('path')].map(p=>p.outerHTML).join('');old.remove()}
   svg=doc.createElementNS('http://www.w3.org/2000/svg','svg');svg.id='lh-annotation-layer';svg.setAttribute('data-lecture-helper-annotation','true');svg.style.cssText='position:absolute;left:0;top:0;z-index:2147483646;overflow:visible;pointer-events:none;user-select:none;-webkit-user-select:none;';svg.innerHTML=existing;(doc.body||doc.documentElement).appendChild(svg);[...svg.querySelectorAll('path')].forEach(preparePath);
   installNavigationGuard(doc,win);
+  try{win.open=()=>null}catch(_){}
   sizeLayer();requestAnimationFrame(sizeLayer);setTimeout(sizeLayer,300);setTimeout(sizeLayer,1200);setTimeout(sizeLayer,2500);
-  if('ResizeObserver'in window){resizeObserver=new ResizeObserver(sizeLayer);resizeObserver.observe(doc.documentElement);if(doc.body)resizeObserver.observe(doc.body)}
+  if('ResizeObserver' in window){resizeObserver=new ResizeObserver(sizeLayer);resizeObserver.observe(doc.documentElement);if(doc.body)resizeObserver.observe(doc.body)}
   [...doc.images].forEach(img=>img.addEventListener('load',sizeLayer));
   svg.addEventListener('pointerdown',pointerDown);svg.addEventListener('pointermove',pointerMove);svg.addEventListener('pointerup',pointerUp);svg.addEventListener('pointercancel',pointerUp);
   const stored=localStorage.getItem(storageKey);if(!existing&&stored){try{restoreState(JSON.parse(stored),false)}catch(_){}}
   history=[captureState()];historyIndex=0;updateHistoryButtons();syncInteractionMode();saveBtn.disabled=false;clearBtn.disabled=false;
-  setTimeout(()=>{const imgs=[...doc.images],loaded=imgs.filter(i=>i.naturalWidth>0).length,broken=imgs.filter(i=>i.complete&&i.naturalWidth===0).length;status.textContent=`${fileName} · FIX 3 · 이미지 ${loaded}/${imgs.length}${broken?` · 실패 ${broken}`:''}`},1800);
+  reportImages(doc,0);setTimeout(()=>reportImages(doc,1),700);setTimeout(()=>reportImages(doc,2),1800);
 }
+function reportImages(doc,phase){const imgs=[...doc.images],loaded=imgs.filter(i=>i.naturalWidth>0).length,emptySrc=imgs.filter(i=>!i.getAttribute('src')).length,broken=imgs.filter(i=>i.getAttribute('src')&&i.complete&&i.naturalWidth===0).length;status.textContent=`FIX 4 · 이미지 ${loaded}/${imgs.length}${emptySrc?` · src대기 ${emptySrc}`:''}${broken?` · 실패 ${broken}`:''}${phase===2?' · 준비됨':''}`}
 function installNavigationGuard(doc,win){
   if(doc.documentElement.dataset.lhNavGuard==='1')return;doc.documentElement.dataset.lhNavGuard='1';
   doc.addEventListener('click',e=>{
-    const a=e.target?.closest?.('a[href]');if(!a)return;const raw=(a.getAttribute('href')||'').trim();if(!raw)return;
+    const a=e.target?.closest?.('a[href]');if(!a)return;
+    const raw=(a.getAttribute('href')||'').trim();if(!raw)return;
     if(raw.startsWith('#')){
-      e.preventDefault();
+      e.preventDefault();e.stopPropagation();
       let id=raw.slice(1);try{id=decodeURIComponent(id)}catch(_){}
-      const target=id?doc.getElementById(id):doc.documentElement;if(target){target.scrollIntoView({behavior:'smooth',block:'start'});try{win.history.replaceState(null,'','#'+encodeURIComponent(id))}catch(_){}}
+      const target=id?doc.getElementById(id):doc.documentElement;
+      if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
       return;
     }
-    let u;try{u=new URL(raw,win.location.href)}catch(_){e.preventDefault();return}
-    if(u.hash&&u.origin===win.location.origin&&u.pathname===win.location.pathname){e.preventDefault();let id=u.hash.slice(1);try{id=decodeURIComponent(id)}catch(_){};doc.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'});return}
-    e.preventDefault();
-    if(/^https?:$/i.test(u.protocol)){window.open(u.href,'_blank','noopener,noreferrer');status.textContent='외부 링크만 새 탭으로 열었음 · 현재 HTML 유지'}else status.textContent='현재 HTML을 바꾸는 링크는 차단됨';
+    e.preventDefault();e.stopPropagation();status.textContent='현재 HTML 보호: 문서 밖으로 이동하는 링크는 차단됨';
   },true);
-  doc.addEventListener('submit',e=>{e.preventDefault();status.textContent='현재 HTML 유지를 위해 문서 이동을 차단함'},true);
+  doc.addEventListener('submit',e=>{e.preventDefault();e.stopPropagation();status.textContent='현재 HTML 보호: 문서 이동 차단됨'},true);
 }
 function sizeLayer(){if(!svg||!viewer.contentDocument)return;const d=viewer.contentDocument,b=d.body,r=d.documentElement,w=Math.max(r.scrollWidth,r.clientWidth,b?b.scrollWidth:0,viewer.clientWidth),h=Math.max(r.scrollHeight,r.clientHeight,b?b.scrollHeight:0,viewer.clientHeight);svg.setAttribute('width',w);svg.setAttribute('height',h);svg.setAttribute('viewBox',`0 0 ${w} ${h}`)}
-function canDraw(e){return tool!=='hand'&&!(e.pointerType==='touch'&&!fingerDraw.checked)}function pt(e){const w=viewer.contentWindow;return[e.clientX+w.scrollX,e.clientY+w.scrollY]}
+function canDraw(e){return tool!=='hand'&&!(e.pointerType==='touch'&&!fingerDraw.checked)}
+function pt(e){const w=viewer.contentWindow;return[e.clientX+w.scrollX,e.clientY+w.scrollY]}
 function pointerDown(e){if(!canDraw(e))return;if(e.pointerType!=='touch'||fingerDraw.checked)e.preventDefault();if(tool==='eraser'){drawing=true;eraseAt(e);try{svg.setPointerCapture(e.pointerId)}catch(_){}return}drawing=true;points=[pt(e)];activePath=viewer.contentDocument.createElementNS('http://www.w3.org/2000/svg','path');const bw=+widthInput.value;activePath.setAttribute('fill','none');activePath.setAttribute('stroke',colorInput.value);activePath.setAttribute('stroke-linecap','round');activePath.setAttribute('stroke-linejoin','round');activePath.setAttribute('stroke-width',tool==='highlighter'?Math.max(8,bw*4):bw);activePath.setAttribute('opacity',tool==='highlighter'?'.28':'1');activePath.setAttribute('data-tool',tool);if(tool==='highlighter')activePath.style.mixBlendMode='multiply';preparePath(activePath);svg.appendChild(activePath);updatePath();try{svg.setPointerCapture(e.pointerId)}catch(_){}}
 function pointerMove(e){if(!drawing||!canDraw(e))return;if(e.pointerType!=='touch'||fingerDraw.checked)e.preventDefault();if(tool==='eraser'){eraseAt(e);return}points.push(pt(e));updatePath()}
 function pointerUp(e){if(!drawing)return;drawing=false;if(activePath&&points.length===1){const[x,y]=points[0];activePath.setAttribute('d',`M ${x} ${y} l .01 .01`)}activePath=null;points=[];commitState();try{svg.releasePointerCapture(e.pointerId)}catch(_){}}
-function updatePath(){if(!activePath||!points.length)return;if(points.length<3){activePath.setAttribute('d',`M ${points[0][0]} ${points[0][1]} L ${points.at(-1)[0]} ${points.at(-1)[1]}`);return}let d=`M ${points[0][0]} ${points[0][1]}`;for(let i=1;i<points.length-1;i++){const p=points[i],n=points[i+1],mx=(p[0]+n[0])/2,my=(p[1]+n[1])/2;d+=` Q ${p[0]} ${p[1]} ${mx} ${my}`}const l=points.at(-1);activePath.setAttribute('d',d+` L ${l[0]} ${l[1]}`)}
-function preparePath(p){p.style.pointerEvents='stroke';p.style.vectorEffect='non-scaling-stroke'}function eraseAt(e){const t=viewer.contentDocument.elementFromPoint(e.clientX,e.clientY);if(t?.tagName?.toLowerCase()==='path'&&t.closest('#lh-annotation-layer'))t.remove()}
+function updatePath(){if(!activePath||!points.length)return;if(points.length<3){activePath.setAttribute('d',`M ${points[0][0]} ${points[0][1]} L ${points[points.length-1][0]} ${points[points.length-1][1]}`);return}let d=`M ${points[0][0]} ${points[0][1]}`;for(let i=1;i<points.length-1;i++){const p=points[i],n=points[i+1],mx=(p[0]+n[0])/2,my=(p[1]+n[1])/2;d+=` Q ${p[0]} ${p[1]} ${mx} ${my}`}const l=points[points.length-1];activePath.setAttribute('d',d+` L ${l[0]} ${l[1]}`)}
+function preparePath(p){p.style.pointerEvents='stroke';p.style.vectorEffect='non-scaling-stroke'}
+function eraseAt(e){const t=viewer.contentDocument.elementFromPoint(e.clientX,e.clientY);if(t?.tagName?.toLowerCase()==='path'&&t.closest('#lh-annotation-layer'))t.remove()}
 function captureState(){return svg?[...svg.querySelectorAll('path')].map(p=>({d:p.getAttribute('d')||'',stroke:p.getAttribute('stroke')||'#000',width:p.getAttribute('stroke-width')||'4',opacity:p.getAttribute('opacity')||'1',tool:p.getAttribute('data-tool')||'pen',blend:p.style.mixBlendMode||''})):[]}
 function restoreState(state,persist=true){if(!svg)return;svg.querySelectorAll('path').forEach(p=>p.remove());for(const x of state||[]){const p=viewer.contentDocument.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',x.d||'');p.setAttribute('fill','none');p.setAttribute('stroke',x.stroke||'#000');p.setAttribute('stroke-width',x.width||'4');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');p.setAttribute('opacity',x.opacity||'1');p.setAttribute('data-tool',x.tool||'pen');if(x.blend)p.style.mixBlendMode=x.blend;preparePath(p);svg.appendChild(p)}if(persist)persistState()}
-function commitState(){if(!svg)return;history=history.slice(0,historyIndex+1);history.push(captureState());historyIndex++;if(history.length>101){history.shift();historyIndex--}persistState();updateHistoryButtons()}function persistState(){if(storageKey&&svg)try{localStorage.setItem(storageKey,JSON.stringify(captureState()))}catch(_){}}function updateHistoryButtons(){undoBtn.disabled=historyIndex<=0;redoBtn.disabled=historyIndex>=history.length-1}
-undoBtn.onclick=()=>{if(historyIndex<=0)return;restoreState(history[--historyIndex]);updateHistoryButtons()};redoBtn.onclick=()=>{if(historyIndex>=history.length-1)return;restoreState(history[++historyIndex]);updateHistoryButtons()};clearBtn.onclick=()=>{if(!svg?.querySelector('path'))return;if(!confirm('현재 HTML의 모든 필기를 삭제할까요?'))return;svg.querySelectorAll('path').forEach(p=>p.remove());commitState()};
-saveBtn.onclick=()=>{const doc=viewer.contentDocument;if(!doc||!svg)return;sizeLayer();const clone=doc.documentElement.cloneNode(true),layer=clone.querySelector('#lh-annotation-layer');if(layer){layer.style.pointerEvents='none';layer.style.touchAction='auto';layer.querySelectorAll('path').forEach(p=>p.style.pointerEvents='none')}clone.removeAttribute('data-lh-nav-guard');const out='<!doctype html>\n'+clone.outerHTML,blob=new Blob([out],{type:'text/html;charset=utf-8'}),a=document.createElement('a'),base=fileName.replace(/\.html?$/i,'');a.href=URL.createObjectURL(blob);a.download=`${base}_annotated.html`;document.body.appendChild(a);a.click();const u=a.href;a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);status.textContent=`${base}_annotated.html 저장됨`};
+function commitState(){if(!svg)return;history=history.slice(0,historyIndex+1);history.push(captureState());historyIndex++;if(history.length>101){history.shift();historyIndex--}persistState();updateHistoryButtons()}
+function persistState(){if(storageKey&&svg)try{localStorage.setItem(storageKey,JSON.stringify(captureState()))}catch(_){}}
+function updateHistoryButtons(){undoBtn.disabled=historyIndex<=0;redoBtn.disabled=historyIndex>=history.length-1}
+undoBtn.onclick=()=>{if(historyIndex<=0)return;restoreState(history[--historyIndex]);updateHistoryButtons()};
+redoBtn.onclick=()=>{if(historyIndex>=history.length-1)return;restoreState(history[++historyIndex]);updateHistoryButtons()};
+clearBtn.onclick=()=>{if(!svg||!svg.querySelector('path'))return;if(!confirm('현재 HTML의 모든 필기를 삭제할까요?'))return;svg.querySelectorAll('path').forEach(p=>p.remove());commitState()};
+saveBtn.onclick=()=>{const doc=viewer.contentDocument;if(!doc||!svg)return;sizeLayer();const clone=doc.documentElement.cloneNode(true),layer=clone.querySelector('#lh-annotation-layer');clone.removeAttribute?.('data-lh-nav-guard');if(layer){layer.style.pointerEvents='none';layer.style.touchAction='auto';layer.querySelectorAll('path').forEach(p=>p.style.pointerEvents='none')}const out='<!doctype html>\n'+clone.outerHTML,blob=new Blob([out],{type:'text/html;charset=utf-8'}),a=document.createElement('a'),base=fileName.replace(/\.html?$/i,'');a.href=URL.createObjectURL(blob);a.download=`${base}_annotated.html`;document.body.appendChild(a);a.click();const u=a.href;a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);status.textContent=`${base}_annotated.html 저장됨`};
 })();
 </script>
 </body>
