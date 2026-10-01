@@ -11,14 +11,30 @@ final class HTMLPencilStore: ObservableObject {
     @Published var readAccessURL: URL?
     @Published var fileName: String = ""
     @Published var fitRequest: Int = 0
+    @Published var importError: String?
 
     private let fm = FileManager.default
     private var projectKey: String = "untitled"
     private(set) var currentDrawing = PKDrawing()
 
     func importHTML(_ pickedURL: URL) throws {
+        let ext = pickedURL.pathExtension.lowercased()
+        guard ext == "html" || ext == "htm" else {
+            throw NSError(
+                domain: "HTMLPencil",
+                code: 10,
+                userInfo: [NSLocalizedDescriptionKey: "HTML(.html/.htm) 파일을 선택해 주세요."]
+            )
+        }
+
         let accessed = pickedURL.startAccessingSecurityScopedResource()
-        defer { if accessed { pickedURL.stopAccessingSecurityScopedResource() } }
+        defer {
+            if accessed { pickedURL.stopAccessingSecurityScopedResource() }
+        }
+
+        // Swift Playgrounds/iCloud 문서에서는 URL 자체를 WKWebView에 직접 넘기는 것보다
+        // 먼저 바이트를 읽어 앱 Documents로 복사한 뒤 여는 방식이 훨씬 안정적임.
+        let data = try Data(contentsOf: pickedURL)
 
         let imports = try importsDirectory()
         let base = safeName(pickedURL.deletingPathExtension().lastPathComponent)
@@ -29,20 +45,23 @@ final class HTMLPencilStore: ObservableObject {
         }
         try fm.createDirectory(at: project, withIntermediateDirectories: true)
 
-        let destination = project.appendingPathComponent(pickedURL.lastPathComponent)
-        try fm.copyItem(at: pickedURL, to: destination)
+        let originalName = pickedURL.lastPathComponent.isEmpty ? "index.html" : pickedURL.lastPathComponent
+        let destination = project.appendingPathComponent(originalName)
+        try data.write(to: destination, options: .atomic)
 
         projectKey = "Single_\(base)"
         currentDrawing = loadDrawing()
         readAccessURL = project
         htmlURL = destination
-        fileName = pickedURL.lastPathComponent
+        fileName = originalName
         fitRequest += 1
     }
 
     func importFolder(_ pickedFolder: URL) throws {
         let accessed = pickedFolder.startAccessingSecurityScopedResource()
-        defer { if accessed { pickedFolder.stopAccessingSecurityScopedResource() } }
+        defer {
+            if accessed { pickedFolder.stopAccessingSecurityScopedResource() }
+        }
 
         let imports = try importsDirectory()
         let folderName = safeName(pickedFolder.lastPathComponent)
@@ -56,7 +75,7 @@ final class HTMLPencilStore: ObservableObject {
         guard let html = firstHTMLFile(in: destination) else {
             throw NSError(
                 domain: "HTMLPencil",
-                code: 1,
+                code: 11,
                 userInfo: [NSLocalizedDescriptionKey: "선택한 폴더에서 HTML 파일을 찾지 못했어요."]
             )
         }
@@ -103,8 +122,7 @@ final class HTMLPencilStore: ObservableObject {
     }
 
     private func firstHTMLFile(in folder: URL) -> URL? {
-        let preferredNames = ["index.html", "index.htm", "main.html", "main.htm"]
-        for name in preferredNames {
+        for name in ["index.html", "index.htm", "main.html", "main.htm"] {
             let candidate = folder.appendingPathComponent(name)
             if fm.fileExists(atPath: candidate.path) {
                 return candidate
@@ -136,6 +154,78 @@ final class HTMLPencilStore: ObservableObject {
     }
 }
 
+enum HTMLPickerMode: String, Identifiable {
+    case file
+    case folder
+
+    var id: String { rawValue }
+}
+
+struct HTMLDocumentPicker: UIViewControllerRepresentable {
+    let mode: HTMLPickerMode
+    let onPick: (URL) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onPick: onPick, onCancel: onCancel)
+    }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker: UIDocumentPickerViewController
+
+        switch mode {
+        case .file:
+            // .data를 함께 허용해서 iCloud/Files가 HTML의 UTI를 이상하게 보고해도 선택 가능하게 함.
+            var types: [UTType] = [.html, .data]
+            if let htm = UTType(filenameExtension: "htm") {
+                types.append(htm)
+            }
+            picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+
+        case .folder:
+            picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
+        }
+
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        picker.shouldShowFileExtensions = true
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let onPick: (URL) -> Void
+        let onCancel: () -> Void
+
+        init(onPick: @escaping (URL) -> Void, onCancel: @escaping () -> Void) {
+            self.onPick = onPick
+            self.onCancel = onCancel
+        }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else {
+                onCancel()
+                return
+            }
+            onPick(url)
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onCancel()
+        }
+    }
+}
+
+// 손가락은 아래 HTML/스크롤로 통과시키고 Apple Pencil 터치만 받는 캔버스.
+final class PencilOnlyHitCanvasView: PKCanvasView {
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        guard super.point(inside: point, with: event) else { return false }
+        guard let touches = event?.allTouches, !touches.isEmpty else { return false }
+        return touches.contains { $0.type == .pencil }
+    }
+}
+
 struct HTMLPencilDocumentView: UIViewRepresentable {
     let htmlURL: URL
     let readAccessURL: URL
@@ -162,10 +252,9 @@ final class HTMLPencilCanvasView: UIView, UIScrollViewDelegate, WKNavigationDele
     private let scrollView = UIScrollView()
     private let contentView = UIView()
     private let webView: WKWebView
-    private let canvasView = PKCanvasView()
+    private let canvasView = PencilOnlyHitCanvasView()
     private let toolPicker = PKToolPicker()
 
-    // A fixed document width keeps HTML layout and ink coordinates stable across rotation.
     private let documentWidth: CGFloat = 1024
     private var documentHeight: CGFloat = 1400
     private var loadedKey: String?
@@ -176,9 +265,10 @@ final class HTMLPencilCanvasView: UIView, UIScrollViewDelegate, WKNavigationDele
     override init(frame: CGRect) {
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        configuration.websiteDataStore = .default()
         webView = WKWebView(frame: .zero, configuration: configuration)
-        super.init(frame: frame)
 
+        super.init(frame: frame)
         backgroundColor = .systemGray6
 
         scrollView.delegate = self
@@ -188,6 +278,8 @@ final class HTMLPencilCanvasView: UIView, UIScrollViewDelegate, WKNavigationDele
         scrollView.showsVerticalScrollIndicator = true
         scrollView.showsHorizontalScrollIndicator = true
         scrollView.bouncesZoom = true
+        scrollView.delaysContentTouches = false
+        scrollView.canCancelContentTouches = true
         scrollView.panGestureRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
         scrollView.pinchGestureRecognizer?.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
         addSubview(scrollView)
@@ -198,10 +290,10 @@ final class HTMLPencilCanvasView: UIView, UIScrollViewDelegate, WKNavigationDele
         webView.navigationDelegate = self
         webView.backgroundColor = .white
         webView.isOpaque = true
+        webView.isUserInteractionEnabled = true
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
-        // Study-note mode: fingers are reserved for the outer scroll view.
-        webView.isUserInteractionEnabled = false
+        webView.scrollView.pinchGestureRecognizer?.isEnabled = false
         contentView.addSubview(webView)
 
         canvasView.backgroundColor = .clear
@@ -257,6 +349,8 @@ final class HTMLPencilCanvasView: UIView, UIScrollViewDelegate, WKNavigationDele
             initialZoomApplied = false
             canvasView.drawing = initialDrawing
             updateContentFrames()
+
+            // 앱 내부로 복사된 HTML이므로 이 시점에는 보안 스코프 문제가 없음.
             webView.loadFileURL(htmlURL, allowingReadAccessTo: readAccessURL)
         }
 
@@ -299,6 +393,7 @@ final class HTMLPencilCanvasView: UIView, UIScrollViewDelegate, WKNavigationDele
         let scaledHeight = documentHeight * scrollView.zoomScale
         let horizontal = max(0, (scrollView.bounds.width - scaledWidth) / 2)
         let vertical = max(0, (scrollView.bounds.height - scaledHeight) / 2)
+
         scrollView.contentInset = UIEdgeInsets(
             top: vertical,
             left: horizontal,
@@ -314,15 +409,21 @@ final class HTMLPencilCanvasView: UIView, UIScrollViewDelegate, WKNavigationDele
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // HTML 내부 JS가 Base64 이미지 src를 채우는 파일도 있으므로 여러 번 높이를 재측정함.
         refreshDocumentHeight()
+        [0.2, 0.6, 1.2, 2.0].forEach { delay in
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.refreshDocumentHeight()
+            }
+        }
+    }
 
-        // Images and custom fonts can finish a little later than didFinish.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
-            self?.refreshDocumentHeight()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.refreshDocumentHeight()
-        }
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        print("HTML navigation error:", error.localizedDescription)
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        print("HTML provisional navigation error:", error.localizedDescription)
     }
 
     private func refreshDocumentHeight() {
@@ -340,8 +441,13 @@ final class HTMLPencilCanvasView: UIView, UIScrollViewDelegate, WKNavigationDele
         })();
         """
 
-        webView.evaluateJavaScript(script) { [weak self] value, _ in
+        webView.evaluateJavaScript(script) { [weak self] value, error in
             guard let self else { return }
+            if let error {
+                print("Height JS error:", error.localizedDescription)
+                return
+            }
+
             let measured: CGFloat
             if let number = value as? NSNumber {
                 measured = CGFloat(truncating: number)
@@ -374,9 +480,7 @@ final class HTMLPencilCanvasView: UIView, UIScrollViewDelegate, WKNavigationDele
 
 struct ContentView: View {
     @StateObject private var store = HTMLPencilStore()
-    @State private var showHTMLImporter = false
-    @State private var showFolderImporter = false
-    @State private var importError: String?
+    @State private var pickerMode: HTMLPickerMode?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -398,53 +502,55 @@ struct ContentView: View {
                 emptyState
             }
         }
-        .fileImporter(
-            isPresented: $showHTMLImporter,
-            allowedContentTypes: [.html],
-            allowsMultipleSelection: false
-        ) { result in
-            do {
-                guard let url = try result.get().first else { return }
-                try store.importHTML(url)
-            } catch {
-                importError = error.localizedDescription
-            }
-        }
-        .fileImporter(
-            isPresented: $showFolderImporter,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            do {
-                guard let url = try result.get().first else { return }
-                try store.importFolder(url)
-            } catch {
-                importError = error.localizedDescription
-            }
+        .sheet(item: $pickerMode) { mode in
+            HTMLDocumentPicker(
+                mode: mode,
+                onPick: { url in
+                    pickerMode = nil
+                    DispatchQueue.main.async {
+                        do {
+                            switch mode {
+                            case .file:
+                                try store.importHTML(url)
+                            case .folder:
+                                try store.importFolder(url)
+                            }
+                        } catch {
+                            store.importError = error.localizedDescription
+                        }
+                    }
+                },
+                onCancel: {
+                    pickerMode = nil
+                }
+            )
+            .ignoresSafeArea()
         }
         .alert("열 수 없어요", isPresented: Binding(
-            get: { importError != nil },
-            set: { if !$0 { importError = nil } }
+            get: { store.importError != nil },
+            set: { if !$0 { store.importError = nil } }
         )) {
-            Button("확인", role: .cancel) { importError = nil }
+            Button("확인", role: .cancel) {
+                store.importError = nil
+            }
         } message: {
-            Text(importError ?? "알 수 없는 오류")
+            Text(store.importError ?? "알 수 없는 오류")
         }
     }
 
     private var toolbar: some View {
         HStack(spacing: 10) {
             Button {
-                showHTMLImporter = true
+                pickerMode = .file
             } label: {
-                Label("HTML 파일", systemImage: "doc")
+                Label("HTML 열기", systemImage: "doc")
             }
             .buttonStyle(.borderedProminent)
 
             Button {
-                showFolderImporter = true
+                pickerMode = .folder
             } label: {
-                Label("HTML 폴더", systemImage: "folder")
+                Label("폴더 열기", systemImage: "folder")
             }
             .buttonStyle(.bordered)
 
@@ -456,7 +562,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .frame(maxWidth: 280)
+                    .frame(maxWidth: 260)
             }
 
             Button {
@@ -481,23 +587,23 @@ struct ContentView: View {
             Text("HTML Pencil")
                 .font(.largeTitle.bold())
 
-            Text("HTML 위에 Apple Pencil로 바로 필기합니다.\n손가락은 스크롤·확대/축소, Pencil은 필기 전용입니다.")
+            Text("HTML 파일을 그대로 열고 Apple Pencil로 위에 필기합니다.\n손가락은 스크롤·확대/축소·HTML 버튼/링크 조작, Pencil은 필기 전용입니다.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
                 Button("HTML 파일 열기") {
-                    showHTMLImporter = true
+                    pickerMode = .file
                 }
                 .buttonStyle(.borderedProminent)
 
                 Button("HTML 폴더 열기") {
-                    showFolderImporter = true
+                    pickerMode = .folder
                 }
                 .buttonStyle(.bordered)
             }
 
-            Text("이미지·CSS가 별도 파일이면 ‘HTML 폴더 열기’를 사용하세요.")
+            Text("지금 올린 것처럼 이미지가 HTML 안에 포함된 단일 파일은 ‘HTML 파일 열기’만 쓰면 됩니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
