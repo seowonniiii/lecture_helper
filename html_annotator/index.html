@@ -1,384 +1,80 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#111827">
-  <title>HTML Pencil Annotator · Lecture Helper</title>
-  <style>
-    *{box-sizing:border-box}
-    :root{--bg:#f3f4f6;--panel:#fff;--line:#d1d5db;--text:#111827;--muted:#6b7280;--accent:#2563eb}
-    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif}
-    body{display:flex;flex-direction:column}
-    .topbar{flex:0 0 auto;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);padding:max(8px,env(safe-area-inset-top)) 10px 8px;backdrop-filter:blur(12px);z-index:10}
-    .row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-    .row+.row{margin-top:7px}
-    .brand{font-weight:900;margin-right:4px;white-space:nowrap}
-    button,.file-label{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);border-radius:11px;padding:8px 11px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
-    button:hover,.file-label:hover{background:#f9fafb}
-    button.active{background:#111827;color:#fff;border-color:#111827}
-    button.primary{background:#2563eb;color:white;border-color:#2563eb}
-    button.danger{color:#b91c1c}
-    button:disabled{opacity:.4;cursor:default}
-    input[type=file]{display:none}
-    .spacer{flex:1}
-    .status{font-size:12px;color:var(--muted);min-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .color-wrap{display:flex;align-items:center;gap:4px;padding:3px 5px;border:1px solid var(--line);border-radius:11px;background:#fff}
-    input[type=color]{width:30px;height:28px;border:0;padding:0;background:transparent}
-    input[type=range]{width:100px}
-    .range-label{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
-    .check{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#374151;white-space:nowrap;padding:0 3px}
-    .viewer-wrap{position:relative;flex:1;min-height:0;background:#cfd4dc}
-    iframe{display:block;width:100%;height:100%;border:0;background:#fff}
-    .empty{position:absolute;inset:0;display:grid;place-items:center;padding:30px;text-align:center;color:#6b7280;pointer-events:none}
-    .empty strong{display:block;color:#111827;font-size:20px;margin-bottom:7px}
-    .help{font-size:11px;color:#6b7280;line-height:1.35}
-    @media(max-width:720px){
-      .topbar{padding-left:7px;padding-right:7px}.brand{width:100%}.status{order:20;width:100%}.spacer{display:none}
-      button,.file-label{padding:7px 9px;font-size:12px}.row{gap:5px}.help{display:none}input[type=range]{width:78px}
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>HTML Pencil Annotator · Lecture Helper</title>
+<style>
+*{box-sizing:border-box}:root{--bg:#f3f4f6;--line:#d1d5db;--text:#111827;--muted:#6b7280}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif}body{display:flex;flex-direction:column}.topbar{flex:0 0 auto;background:rgba(255,255,255,.97);border-bottom:1px solid var(--line);padding:max(8px,env(safe-area-inset-top)) 10px 8px;backdrop-filter:blur(12px);z-index:10}.row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.row+.row{margin-top:7px}.brand{font-weight:900;margin-right:4px;white-space:nowrap}button,.file-label{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);border-radius:11px;padding:8px 11px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}button:hover,.file-label:hover{background:#f9fafb}button.active{background:#111827;color:#fff;border-color:#111827}button.primary{background:#2563eb;color:#fff;border-color:#2563eb}.folder-label{background:#ecfdf5;border-color:#a7f3d0;color:#047857}.danger{color:#b91c1c}button:disabled{opacity:.4;cursor:default}input[type=file]{display:none}.spacer{flex:1}.status{font-size:12px;color:var(--muted);min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.color-wrap{display:flex;align-items:center;gap:4px;padding:3px 5px;border:1px solid var(--line);border-radius:11px;background:#fff}input[type=color]{width:30px;height:28px;border:0;padding:0;background:transparent}input[type=range]{width:100px}.range-label{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}.check{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#374151;white-space:nowrap;padding:0 3px}.viewer-wrap{position:relative;flex:1;min-height:0;background:#cfd4dc}iframe{display:block;width:100%;height:100%;border:0;background:#fff}.empty{position:absolute;inset:0;display:grid;place-items:center;padding:30px;text-align:center;color:#6b7280;pointer-events:none}.empty strong{display:block;color:#111827;font-size:20px;margin-bottom:8px}.empty small{display:block;max-width:620px;line-height:1.6;margin-top:9px}.help{font-size:11px;color:#6b7280;line-height:1.35}@media(max-width:760px){.topbar{padding-left:7px;padding-right:7px}.brand{width:100%}.status{order:20;width:100%}.spacer{display:none}button,.file-label{padding:7px 9px;font-size:12px}.row{gap:5px}.help{display:none}input[type=range]{width:78px}}
+</style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="row">
-      <div class="brand">✏️ HTML Pencil Annotator</div>
-      <label class="file-label" for="fileInput">HTML 열기</label>
-      <input id="fileInput" type="file" accept="text/html,.html,.htm">
-      <button id="saveBtn" class="primary" disabled>필기 포함 HTML 저장</button>
-      <button id="homeBtn">← Main</button>
-      <div class="spacer"></div>
-      <div id="status" class="status">HTML 파일을 열어주세요.</div>
-    </div>
-    <div class="row" id="tools">
-      <button data-tool="hand" class="active">✋ 스크롤</button>
-      <button data-tool="pen">✏️ 펜</button>
-      <button data-tool="highlighter">🖍️ 형광펜</button>
-      <button data-tool="eraser">🧽 지우개</button>
-      <div class="color-wrap"><span class="range-label">색</span><input id="color" type="color" value="#e11d48"></div>
-      <span class="range-label">굵기 <b id="widthValue">4</b></span>
-      <input id="width" type="range" min="1" max="30" step="1" value="4">
-      <label class="check"><input id="fingerDraw" type="checkbox"> 손가락도 그리기</label>
-      <button id="undoBtn" disabled>↶ Undo</button>
-      <button id="redoBtn" disabled>↷ Redo</button>
-      <button id="clearBtn" class="danger" disabled>전체 필기 삭제</button>
-      <span class="help">기본값: Apple Pencil/마우스로 필기 · 손가락은 스크롤</span>
-    </div>
-  </header>
-
-  <main class="viewer-wrap">
-    <iframe id="viewer" sandbox="allow-same-origin" title="HTML preview"></iframe>
-    <div id="empty" class="empty"><div><strong>HTML 파일 위에 바로 필기</strong>HTML을 열고 펜/형광펜을 선택하세요.<br>원본 내용은 유지되고, 필기는 별도 SVG 레이어로 저장됩니다.</div></div>
-  </main>
-
+<header class="topbar">
+  <div class="row">
+    <div class="brand">✏️ HTML Pencil Annotator</div>
+    <label class="file-label" for="fileInput">HTML만 열기</label>
+    <input id="fileInput" type="file" accept="text/html,.html,.htm">
+    <label class="file-label folder-label" for="folderInput">📁 HTML+사진 폴더 열기</label>
+    <input id="folderInput" type="file" webkitdirectory directory multiple>
+    <button id="saveBtn" class="primary" disabled>필기 포함 HTML 저장</button>
+    <button id="homeBtn">← Main</button>
+    <div class="spacer"></div><div id="status" class="status">HTML 파일을 열어주세요.</div>
+  </div>
+  <div class="row">
+    <button data-tool="hand" class="active">✋ 스크롤</button><button data-tool="pen">✏️ 펜</button><button data-tool="highlighter">🖍️ 형광펜</button><button data-tool="eraser">🧽 지우개</button>
+    <div class="color-wrap"><span class="range-label">색</span><input id="color" type="color" value="#e11d48"></div>
+    <span class="range-label">굵기 <b id="widthValue">4</b></span><input id="width" type="range" min="1" max="30" step="1" value="4">
+    <label class="check"><input id="fingerDraw" type="checkbox"> 손가락도 그리기</label>
+    <button id="undoBtn" disabled>↶ Undo</button><button id="redoBtn" disabled>↷ Redo</button><button id="clearBtn" class="danger" disabled>전체 필기 삭제</button>
+    <span class="help">사진이 별도 images 폴더에 있으면 반드시 ‘HTML+사진 폴더 열기’를 사용</span>
+  </div>
+</header>
+<main class="viewer-wrap">
+  <iframe id="viewer" sandbox="allow-same-origin" title="HTML preview"></iframe>
+  <div id="empty" class="empty"><div><strong>HTML 파일 위에 바로 필기</strong>이미지가 HTML 안에 내장돼 있으면 ‘HTML만 열기’.<br>images/assets 폴더를 따로 쓰는 HTML이면 ‘HTML+사진 폴더 열기’.<small>폴더로 열면 로컬 이미지와 CSS 배경 이미지를 HTML 안에 자동으로 임베드해서, 저장한 annotated.html도 사진이 사라지지 않게 만듭니다.</small></div></div>
+</main>
 <script>
 (() => {
-  const viewer = document.getElementById('viewer');
-  const fileInput = document.getElementById('fileInput');
-  const saveBtn = document.getElementById('saveBtn');
-  const status = document.getElementById('status');
-  const empty = document.getElementById('empty');
-  const colorInput = document.getElementById('color');
-  const widthInput = document.getElementById('width');
-  const widthValue = document.getElementById('widthValue');
-  const fingerDraw = document.getElementById('fingerDraw');
-  const undoBtn = document.getElementById('undoBtn');
-  const redoBtn = document.getElementById('redoBtn');
-  const clearBtn = document.getElementById('clearBtn');
-
-  let tool = 'hand';
-  let fileName = 'document.html';
-  let storageKey = '';
-  let svg = null;
-  let drawing = false;
-  let activePath = null;
-  let points = [];
-  let history = [];
-  let historyIndex = -1;
-  let resizeObserver = null;
-
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-  document.getElementById('homeBtn').onclick = () => location.href = '../';
-  widthInput.oninput = () => widthValue.textContent = widthInput.value;
-
-  document.querySelectorAll('[data-tool]').forEach(btn => {
-    btn.addEventListener('click', () => setTool(btn.dataset.tool));
-  });
-
-  function setTool(next){
-    tool = next;
-    document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
-    syncInteractionMode();
-    if (svg) status.textContent = tool === 'hand' ? '스크롤/확대 모드' : `${tool === 'pen' ? '펜' : tool === 'highlighter' ? '형광펜' : '지우개'} 모드`;
-  }
-
-  function syncInteractionMode(){
-    if (!svg) return;
-    if (tool === 'hand') {
-      svg.style.pointerEvents = 'none';
-      svg.style.touchAction = 'auto';
-    } else {
-      svg.style.pointerEvents = 'auto';
-      svg.style.touchAction = fingerDraw.checked ? 'none' : 'pan-x pan-y pinch-zoom';
-    }
-  }
-  fingerDraw.onchange = syncInteractionMode;
-
-  fileInput.addEventListener('change', async e => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      fileName = file.name || 'document.html';
-      storageKey = `lh-html-annotator:${file.name}:${file.size}:${file.lastModified}`;
-      status.textContent = `${fileName} 불러오는 중…`;
-      viewer.onload = () => setupViewer();
-      viewer.srcdoc = text;
-    } catch (err) {
-      console.error(err);
-      status.textContent = 'HTML 파일을 열지 못했습니다.';
-    }
-  });
-
-  function setupViewer(){
-    const doc = viewer.contentDocument;
-    if (!doc || !doc.documentElement) return;
-    empty.style.display = 'none';
-
-    if (resizeObserver) resizeObserver.disconnect();
-    const old = doc.getElementById('lh-annotation-layer');
-    let existingMarkup = '';
-    if (old) {
-      existingMarkup = [...old.querySelectorAll('path')].map(p => p.outerHTML).join('');
-      old.remove();
-    }
-
-    svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.id = 'lh-annotation-layer';
-    svg.setAttribute('data-lecture-helper-annotation', 'true');
-    svg.style.cssText = 'position:absolute;left:0;top:0;z-index:2147483646;overflow:visible;pointer-events:none;user-select:none;-webkit-user-select:none;';
-    svg.innerHTML = existingMarkup;
-    doc.body.appendChild(svg);
-
-    [...svg.querySelectorAll('path')].forEach(preparePath);
-    sizeLayer();
-    requestAnimationFrame(sizeLayer);
-    setTimeout(sizeLayer, 250);
-    setTimeout(sizeLayer, 1000);
-
-    if ('ResizeObserver' in window) {
-      resizeObserver = new ResizeObserver(sizeLayer);
-      resizeObserver.observe(doc.documentElement);
-      if (doc.body) resizeObserver.observe(doc.body);
-    }
-    [...doc.images].forEach(img => img.addEventListener('load', sizeLayer, {once:true}));
-
-    svg.addEventListener('pointerdown', pointerDown);
-    svg.addEventListener('pointermove', pointerMove);
-    svg.addEventListener('pointerup', pointerUp);
-    svg.addEventListener('pointercancel', pointerUp);
-
-    const stored = localStorage.getItem(storageKey);
-    if (!existingMarkup && stored) {
-      try { restoreState(JSON.parse(stored), false); } catch (_) {}
-    }
-
-    history = [captureState()];
-    historyIndex = 0;
-    updateHistoryButtons();
-    syncInteractionMode();
-    saveBtn.disabled = false;
-    clearBtn.disabled = false;
-    status.textContent = `${fileName} · 준비됨`;
-  }
-
-  function sizeLayer(){
-    if (!svg || !viewer.contentDocument) return;
-    const doc = viewer.contentDocument;
-    const body = doc.body;
-    const root = doc.documentElement;
-    const w = Math.max(root.scrollWidth, root.clientWidth, body ? body.scrollWidth : 0, viewer.clientWidth);
-    const h = Math.max(root.scrollHeight, root.clientHeight, body ? body.scrollHeight : 0, viewer.clientHeight);
-    svg.setAttribute('width', w);
-    svg.setAttribute('height', h);
-    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-    svg.dataset.canvasWidth = w;
-    svg.dataset.canvasHeight = h;
-  }
-
-  function canDrawWith(e){
-    if (tool === 'hand') return false;
-    if (e.pointerType === 'touch' && !fingerDraw.checked) return false;
-    return true;
-  }
-
-  function pointFromEvent(e){
-    const win = viewer.contentWindow;
-    return [e.clientX + win.scrollX, e.clientY + win.scrollY];
-  }
-
-  function pointerDown(e){
-    if (!canDrawWith(e)) return;
-    if (e.pointerType !== 'touch' || fingerDraw.checked) e.preventDefault();
-
-    if (tool === 'eraser') {
-      drawing = true;
-      eraseAt(e);
-      try { svg.setPointerCapture(e.pointerId); } catch (_) {}
-      return;
-    }
-
-    drawing = true;
-    points = [pointFromEvent(e)];
-    activePath = viewer.contentDocument.createElementNS('http://www.w3.org/2000/svg', 'path');
-    const baseWidth = Number(widthInput.value);
-    activePath.setAttribute('fill', 'none');
-    activePath.setAttribute('stroke', colorInput.value);
-    activePath.setAttribute('stroke-linecap', 'round');
-    activePath.setAttribute('stroke-linejoin', 'round');
-    activePath.setAttribute('stroke-width', tool === 'highlighter' ? Math.max(8, baseWidth * 4) : baseWidth);
-    activePath.setAttribute('opacity', tool === 'highlighter' ? '0.28' : '1');
-    activePath.setAttribute('data-tool', tool);
-    activePath.setAttribute('data-pointer', e.pointerType || 'unknown');
-    if (tool === 'highlighter') activePath.style.mixBlendMode = 'multiply';
-    preparePath(activePath);
-    svg.appendChild(activePath);
-    updatePath();
-    try { svg.setPointerCapture(e.pointerId); } catch (_) {}
-  }
-
-  function pointerMove(e){
-    if (!drawing || !canDrawWith(e)) return;
-    if (e.pointerType !== 'touch' || fingerDraw.checked) e.preventDefault();
-    if (tool === 'eraser') { eraseAt(e); return; }
-    if (!activePath) return;
-    points.push(pointFromEvent(e));
-    updatePath();
-  }
-
-  function pointerUp(e){
-    if (!drawing) return;
-    drawing = false;
-    if (activePath && points.length === 1) {
-      const [x,y] = points[0];
-      activePath.setAttribute('d', `M ${x} ${y} l .01 .01`);
-    }
-    activePath = null;
-    points = [];
-    commitState();
-    try { svg.releasePointerCapture(e.pointerId); } catch (_) {}
-  }
-
-  function updatePath(){
-    if (!activePath || !points.length) return;
-    if (points.length < 3) {
-      activePath.setAttribute('d', `M ${points[0][0]} ${points[0][1]} L ${points[points.length-1][0]} ${points[points.length-1][1]}`);
-      return;
-    }
-    let d = `M ${points[0][0]} ${points[0][1]}`;
-    for (let i=1;i<points.length-1;i++) {
-      const p = points[i], n = points[i+1];
-      const mx = (p[0]+n[0])/2, my = (p[1]+n[1])/2;
-      d += ` Q ${p[0]} ${p[1]} ${mx} ${my}`;
-    }
-    const last = points[points.length-1];
-    d += ` L ${last[0]} ${last[1]}`;
-    activePath.setAttribute('d', d);
-  }
-
-  function preparePath(path){
-    path.style.pointerEvents = 'stroke';
-    path.style.vectorEffect = 'non-scaling-stroke';
-  }
-
-  function eraseAt(e){
-    const doc = viewer.contentDocument;
-    let target = doc.elementFromPoint(e.clientX, e.clientY);
-    if (target && target.tagName && target.tagName.toLowerCase() === 'path' && target.closest('#lh-annotation-layer')) target.remove();
-  }
-
-  function captureState(){
-    if (!svg) return [];
-    return [...svg.querySelectorAll('path')].map(p => ({
-      d:p.getAttribute('d')||'', stroke:p.getAttribute('stroke')||'#000000', width:p.getAttribute('stroke-width')||'4',
-      opacity:p.getAttribute('opacity')||'1', tool:p.getAttribute('data-tool')||'pen', pointer:p.getAttribute('data-pointer')||'',
-      blend:p.style.mixBlendMode||''
-    }));
-  }
-
-  function restoreState(state, persist=true){
-    if (!svg) return;
-    svg.querySelectorAll('path').forEach(p => p.remove());
-    for (const item of state || []) {
-      const p = viewer.contentDocument.createElementNS('http://www.w3.org/2000/svg','path');
-      p.setAttribute('d', item.d || ''); p.setAttribute('fill','none'); p.setAttribute('stroke', item.stroke || '#000');
-      p.setAttribute('stroke-width', item.width || '4'); p.setAttribute('stroke-linecap','round'); p.setAttribute('stroke-linejoin','round');
-      p.setAttribute('opacity', item.opacity || '1'); p.setAttribute('data-tool', item.tool || 'pen');
-      if (item.pointer) p.setAttribute('data-pointer', item.pointer);
-      if (item.blend) p.style.mixBlendMode = item.blend;
-      preparePath(p); svg.appendChild(p);
-    }
-    if (persist) persistState();
-  }
-
-  function commitState(){
-    if (!svg) return;
-    const state = captureState();
-    history = history.slice(0, historyIndex + 1);
-    history.push(state);
-    if (history.length > 101) history.shift(); else historyIndex++;
-    if (history.length > 101) historyIndex = history.length - 1;
-    persistState();
-    updateHistoryButtons();
-  }
-
-  function persistState(){
-    if (!storageKey || !svg) return;
-    try { localStorage.setItem(storageKey, JSON.stringify(captureState())); } catch (_) {}
-  }
-
-  function updateHistoryButtons(){
-    undoBtn.disabled = historyIndex <= 0;
-    redoBtn.disabled = historyIndex < 0 || historyIndex >= history.length - 1;
-  }
-
-  undoBtn.onclick = () => {
-    if (historyIndex <= 0) return;
-    historyIndex--; restoreState(history[historyIndex]); updateHistoryButtons();
-  };
-  redoBtn.onclick = () => {
-    if (historyIndex >= history.length - 1) return;
-    historyIndex++; restoreState(history[historyIndex]); updateHistoryButtons();
-  };
-  clearBtn.onclick = () => {
-    if (!svg || !svg.querySelector('path')) return;
-    if (!confirm('현재 HTML의 모든 필기를 삭제할까요?')) return;
-    svg.querySelectorAll('path').forEach(p => p.remove());
-    commitState();
-  };
-
-  saveBtn.onclick = () => {
-    const doc = viewer.contentDocument;
-    if (!doc || !svg) return;
-    sizeLayer();
-    const clone = doc.documentElement.cloneNode(true);
-    const layer = clone.querySelector('#lh-annotation-layer');
-    if (layer) {
-      layer.style.pointerEvents = 'none';
-      layer.style.touchAction = 'auto';
-      layer.querySelectorAll('path').forEach(p => { p.style.pointerEvents = 'none'; });
-    }
-    const out = '<!doctype html>\n' + clone.outerHTML;
-    const blob = new Blob([out], {type:'text/html;charset=utf-8'});
-    const a = document.createElement('a');
-    const base = fileName.replace(/\.html?$/i,'');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${base}_annotated.html`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    status.textContent = `${base}_annotated.html 저장됨`;
-  };
+const $=id=>document.getElementById(id),viewer=$('viewer'),fileInput=$('fileInput'),folderInput=$('folderInput'),saveBtn=$('saveBtn'),status=$('status'),empty=$('empty'),colorInput=$('color'),widthInput=$('width'),widthValue=$('widthValue'),fingerDraw=$('fingerDraw'),undoBtn=$('undoBtn'),redoBtn=$('redoBtn'),clearBtn=$('clearBtn');
+let tool='hand',fileName='document.html',storageKey='',svg=null,drawing=false,activePath=null,points=[],history=[],historyIndex=-1,resizeObserver=null,objectUrls=[];
+$('homeBtn').onclick=()=>location.href='../'; widthInput.oninput=()=>widthValue.textContent=widthInput.value;
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+function setTool(next){tool=next;document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));syncInteractionMode();if(svg)status.textContent=tool==='hand'?'스크롤/확대 모드':`${tool==='pen'?'펜':tool==='highlighter'?'형광펜':'지우개'} 모드`}
+function syncInteractionMode(){if(!svg)return;if(tool==='hand'){svg.style.pointerEvents='none';svg.style.touchAction='auto'}else{svg.style.pointerEvents='auto';svg.style.touchAction=fingerDraw.checked?'none':'pan-x pan-y pinch-zoom'}} fingerDraw.onchange=syncInteractionMode;
+function normPath(p){const out=[];String(p||'').replace(/\\/g,'/').split('/').forEach(x=>{if(!x||x==='.')return;if(x==='..')out.pop();else out.push(x)});return out.join('/')}
+function dirName(p){const n=normPath(p),i=n.lastIndexOf('/');return i<0?'':n.slice(0,i)}
+function isExternal(u){return !u||/^(?:[a-z]+:|\/\/|#)/i.test(u)}
+function stripSuffix(u){return String(u).split('#')[0].split('?')[0]}
+function resolvePath(baseFile,ref){let clean=stripSuffix(ref);try{clean=decodeURIComponent(clean)}catch(_){};if(clean.startsWith('/'))clean=clean.slice(1);return normPath((dirName(baseFile)?dirName(baseFile)+'/':'')+clean)}
+function fileKey(f){return normPath(f.webkitRelativePath||f.name)}
+function toDataURL(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}
+async function buildAssetContext(files,htmlFile){const map=new Map(),cache=new Map();for(const f of files)map.set(fileKey(f),f);const htmlPath=fileKey(htmlFile);async function dataFor(ref){if(isExternal(ref))return null;let key=resolvePath(htmlPath,ref),f=map.get(key);if(!f){const target=normPath(stripSuffix(ref));const candidates=[...map.entries()].filter(([k])=>k.endsWith('/'+target)||k===target);if(candidates.length===1){key=candidates[0][0];f=candidates[0][1]}}if(!f)return null;if(!cache.has(key))cache.set(key,await toDataURL(f));return cache.get(key)}return{map,htmlPath,dataFor}}
+async function rewriteCss(css,ctx){const matches=[...String(css).matchAll(/url\(\s*(['"]?)([^'"\)]+)\1\s*\)/gi)];let out=String(css);for(let i=matches.length-1;i>=0;i--){const m=matches[i],ref=m[2].trim();if(isExternal(ref)||ref.startsWith('data:'))continue;const data=await ctx.dataFor(ref);if(data)out=out.slice(0,m.index)+`url("${data}")`+out.slice(m.index+m[0].length)}return out}
+async function prepareHtml(text,htmlFile,allFiles){const parser=new DOMParser(),doc=parser.parseFromString(text,'text/html'),ctx=await buildAssetContext(allFiles,htmlFile);let resolved=0,unresolved=0;
+for(const el of doc.querySelectorAll('[src]')){const ref=el.getAttribute('src');if(isExternal(ref)||ref?.startsWith('data:'))continue;const data=await ctx.dataFor(ref);if(data){el.setAttribute('src',data);resolved++}else unresolved++}
+for(const el of doc.querySelectorAll('[poster]')){const ref=el.getAttribute('poster');if(isExternal(ref)||ref?.startsWith('data:'))continue;const data=await ctx.dataFor(ref);if(data){el.setAttribute('poster',data);resolved++}}
+for(const el of doc.querySelectorAll('[srcset]')){const parts=el.getAttribute('srcset').split(',').map(x=>x.trim()).filter(Boolean),next=[];for(const part of parts){const bits=part.split(/\s+/),ref=bits.shift(),data=await ctx.dataFor(ref);next.push((data||ref)+(bits.length?' '+bits.join(' '):''));if(data)resolved++}el.setAttribute('srcset',next.join(', '))}
+for(const st of doc.querySelectorAll('style'))st.textContent=await rewriteCss(st.textContent,ctx);
+for(const el of doc.querySelectorAll('[style]'))el.setAttribute('style',await rewriteCss(el.getAttribute('style'),ctx));
+for(const link of [...doc.querySelectorAll('link[rel~="stylesheet"][href]')]){const ref=link.getAttribute('href');if(isExternal(ref))continue;const key=resolvePath(ctx.htmlPath,ref),f=ctx.map.get(key);if(f){let css=await f.text();const nestedCtx={...ctx,dataFor:async r=>{if(isExternal(r))return null;const fakeBase={...ctx,htmlPath:key};const direct=resolvePath(key,r);const af=ctx.map.get(direct);return af?await toDataURL(af):null}};css=await rewriteCss(css,nestedCtx);const s=doc.createElement('style');s.setAttribute('data-lh-embedded-css',ref);s.textContent=css;link.replaceWith(s);resolved++}}
+doc.querySelectorAll('base').forEach(b=>b.remove());return{html:'<!doctype html>\n'+doc.documentElement.outerHTML,resolved,unresolved}}
+async function loadHtml(htmlFile,files){try{status.textContent='HTML과 사진 불러오는 중…';const text=await htmlFile.text(),prepared=await prepareHtml(text,htmlFile,files);fileName=htmlFile.name||'document.html';storageKey=`lh-html-annotator:${fileName}:${htmlFile.size}:${htmlFile.lastModified}`;viewer.onload=()=>setupViewer(prepared);viewer.srcdoc=prepared.html}catch(err){console.error(err);status.textContent='HTML 파일을 열지 못했습니다.'}}
+fileInput.onchange=e=>{const f=e.target.files?.[0];if(f)loadHtml(f,[f])};
+folderInput.onchange=e=>{const files=[...(e.target.files||[])];if(!files.length)return;const htmls=files.filter(f=>/\.html?$/i.test(f.name));if(!htmls.length){status.textContent='선택한 폴더에 HTML 파일이 없습니다.';return}const html=htmls.find(f=>/^index\.html?$/i.test(f.name))||htmls[0];loadHtml(html,files)};
+function setupViewer(prepared){const doc=viewer.contentDocument;if(!doc?.documentElement)return;empty.style.display='none';if(resizeObserver)resizeObserver.disconnect();const old=doc.getElementById('lh-annotation-layer');let existingMarkup='';if(old){existingMarkup=[...old.querySelectorAll('path')].map(p=>p.outerHTML).join('');old.remove()}svg=doc.createElementNS('http://www.w3.org/2000/svg','svg');svg.id='lh-annotation-layer';svg.setAttribute('data-lecture-helper-annotation','true');svg.style.cssText='position:absolute;left:0;top:0;z-index:2147483646;overflow:visible;pointer-events:none;user-select:none;-webkit-user-select:none;';svg.innerHTML=existingMarkup;doc.body.appendChild(svg);[...svg.querySelectorAll('path')].forEach(preparePath);sizeLayer();requestAnimationFrame(sizeLayer);setTimeout(sizeLayer,250);setTimeout(sizeLayer,1000);if('ResizeObserver'in window){resizeObserver=new ResizeObserver(sizeLayer);resizeObserver.observe(doc.documentElement);if(doc.body)resizeObserver.observe(doc.body)}[...doc.images].forEach(img=>img.addEventListener('load',sizeLayer,{once:true}));svg.addEventListener('pointerdown',pointerDown);svg.addEventListener('pointermove',pointerMove);svg.addEventListener('pointerup',pointerUp);svg.addEventListener('pointercancel',pointerUp);const stored=localStorage.getItem(storageKey);if(!existingMarkup&&stored){try{restoreState(JSON.parse(stored),false)}catch(_){}}history=[captureState()];historyIndex=0;updateHistoryButtons();syncInteractionMode();saveBtn.disabled=false;clearBtn.disabled=false;setTimeout(()=>{const broken=[...doc.images].filter(i=>i.complete&&i.naturalWidth===0).length;if(broken)status.textContent=`${fileName} · 사진 ${broken}개 못 찾음 → 폴더째 열어주세요`;else status.textContent=`${fileName} · 준비됨${prepared?.resolved?` · 사진/자원 ${prepared.resolved}개 포함`:''}`},500)}
+function sizeLayer(){if(!svg||!viewer.contentDocument)return;const doc=viewer.contentDocument,body=doc.body,root=doc.documentElement,w=Math.max(root.scrollWidth,root.clientWidth,body?body.scrollWidth:0,viewer.clientWidth),h=Math.max(root.scrollHeight,root.clientHeight,body?body.scrollHeight:0,viewer.clientHeight);svg.setAttribute('width',w);svg.setAttribute('height',h);svg.setAttribute('viewBox',`0 0 ${w} ${h}`)}
+function canDrawWith(e){if(tool==='hand')return false;if(e.pointerType==='touch'&&!fingerDraw.checked)return false;return true}function pointFromEvent(e){const win=viewer.contentWindow;return[e.clientX+win.scrollX,e.clientY+win.scrollY]}
+function pointerDown(e){if(!canDrawWith(e))return;if(e.pointerType!=='touch'||fingerDraw.checked)e.preventDefault();if(tool==='eraser'){drawing=true;eraseAt(e);try{svg.setPointerCapture(e.pointerId)}catch(_){}return}drawing=true;points=[pointFromEvent(e)];activePath=viewer.contentDocument.createElementNS('http://www.w3.org/2000/svg','path');const baseWidth=Number(widthInput.value);activePath.setAttribute('fill','none');activePath.setAttribute('stroke',colorInput.value);activePath.setAttribute('stroke-linecap','round');activePath.setAttribute('stroke-linejoin','round');activePath.setAttribute('stroke-width',tool==='highlighter'?Math.max(8,baseWidth*4):baseWidth);activePath.setAttribute('opacity',tool==='highlighter'?'0.28':'1');activePath.setAttribute('data-tool',tool);activePath.setAttribute('data-pointer',e.pointerType||'unknown');if(tool==='highlighter')activePath.style.mixBlendMode='multiply';preparePath(activePath);svg.appendChild(activePath);updatePath();try{svg.setPointerCapture(e.pointerId)}catch(_){}}
+function pointerMove(e){if(!drawing||!canDrawWith(e))return;if(e.pointerType!=='touch'||fingerDraw.checked)e.preventDefault();if(tool==='eraser'){eraseAt(e);return}if(!activePath)return;points.push(pointFromEvent(e));updatePath()}
+function pointerUp(e){if(!drawing)return;drawing=false;if(activePath&&points.length===1){const[x,y]=points[0];activePath.setAttribute('d',`M ${x} ${y} l .01 .01`)}activePath=null;points=[];commitState();try{svg.releasePointerCapture(e.pointerId)}catch(_){}}
+function updatePath(){if(!activePath||!points.length)return;if(points.length<3){activePath.setAttribute('d',`M ${points[0][0]} ${points[0][1]} L ${points[points.length-1][0]} ${points[points.length-1][1]}`);return}let d=`M ${points[0][0]} ${points[0][1]}`;for(let i=1;i<points.length-1;i++){const p=points[i],n=points[i+1],mx=(p[0]+n[0])/2,my=(p[1]+n[1])/2;d+=` Q ${p[0]} ${p[1]} ${mx} ${my}`}const last=points[points.length-1];d+=` L ${last[0]} ${last[1]}`;activePath.setAttribute('d',d)}
+function preparePath(p){p.style.pointerEvents='stroke';p.style.vectorEffect='non-scaling-stroke'}function eraseAt(e){const doc=viewer.contentDocument,t=doc.elementFromPoint(e.clientX,e.clientY);if(t?.tagName?.toLowerCase()==='path'&&t.closest('#lh-annotation-layer'))t.remove()}
+function captureState(){return svg?[...svg.querySelectorAll('path')].map(p=>({d:p.getAttribute('d')||'',stroke:p.getAttribute('stroke')||'#000',width:p.getAttribute('stroke-width')||'4',opacity:p.getAttribute('opacity')||'1',tool:p.getAttribute('data-tool')||'pen',pointer:p.getAttribute('data-pointer')||'',blend:p.style.mixBlendMode||''})):[]}
+function restoreState(state,persist=true){if(!svg)return;svg.querySelectorAll('path').forEach(p=>p.remove());for(const item of state||[]){const p=viewer.contentDocument.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',item.d||'');p.setAttribute('fill','none');p.setAttribute('stroke',item.stroke||'#000');p.setAttribute('stroke-width',item.width||'4');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');p.setAttribute('opacity',item.opacity||'1');p.setAttribute('data-tool',item.tool||'pen');if(item.pointer)p.setAttribute('data-pointer',item.pointer);if(item.blend)p.style.mixBlendMode=item.blend;preparePath(p);svg.appendChild(p)}if(persist)persistState()}
+function commitState(){if(!svg)return;const state=captureState();history=history.slice(0,historyIndex+1);history.push(state);if(history.length>101)history.shift();else historyIndex++;if(history.length>101)historyIndex=history.length-1;persistState();updateHistoryButtons()}function persistState(){if(!storageKey||!svg)return;try{localStorage.setItem(storageKey,JSON.stringify(captureState()))}catch(_){}}function updateHistoryButtons(){undoBtn.disabled=historyIndex<=0;redoBtn.disabled=historyIndex<0||historyIndex>=history.length-1}
+undoBtn.onclick=()=>{if(historyIndex<=0)return;historyIndex--;restoreState(history[historyIndex]);updateHistoryButtons()};redoBtn.onclick=()=>{if(historyIndex>=history.length-1)return;historyIndex++;restoreState(history[historyIndex]);updateHistoryButtons()};clearBtn.onclick=()=>{if(!svg||!svg.querySelector('path'))return;if(!confirm('현재 HTML의 모든 필기를 삭제할까요?'))return;svg.querySelectorAll('path').forEach(p=>p.remove());commitState()};
+saveBtn.onclick=()=>{const doc=viewer.contentDocument;if(!doc||!svg)return;sizeLayer();const clone=doc.documentElement.cloneNode(true),layer=clone.querySelector('#lh-annotation-layer');if(layer){layer.style.pointerEvents='none';layer.style.touchAction='auto';layer.querySelectorAll('path').forEach(p=>p.style.pointerEvents='none')}const out='<!doctype html>\n'+clone.outerHTML,blob=new Blob([out],{type:'text/html;charset=utf-8'}),a=document.createElement('a'),base=fileName.replace(/\.html?$/i,'');a.href=URL.createObjectURL(blob);a.download=`${base}_annotated.html`;document.body.appendChild(a);a.click();const u=a.href;a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);status.textContent=`${base}_annotated.html 저장됨 · 사진 포함`};
 })();
 </script>
 </body>
