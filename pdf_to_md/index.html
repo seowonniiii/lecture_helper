@@ -39,7 +39,7 @@
     <h2>추가 기능</h2>
     <div class="featureList">
       <div class="feature">
-        <label class="featureToggle"><input id="extractVisuals" type="checkbox"><span><b>개별 이미지 추출</b><small>PDF 내부 CT·병리사진·그림 같은 raster image를 figures/에 별도 저장</small></span></label>
+        <label class="featureToggle"><input id="extractVisuals" type="checkbox"><span><b>개별 이미지 추출</b><small>PDF 내부 CT·병리사진·그림 같은 raster image를 raw 원본 그대로 figures/에 별도 저장</small></span></label>
         <div class="featureOptions" id="visualOptions">
           <label class="control">이미지 최소 크기
             <select id="minFigure">
@@ -49,14 +49,10 @@
               <option value="240">240 px · 큰 것만</option>
             </select>
           </label>
-          <label class="control check"><input id="cropRegions" type="checkbox" checked> 주변 영역도 함께 crop</label>
-          <label class="control" id="cropMarginWrap">주변 crop 여백
-            <select id="cropMargin">
-              <option value="0.03">3%</option>
-              <option value="0.07" selected>7% · 권장</option>
-              <option value="0.12">12%</option>
-              <option value="0.18">18%</option>
-            </select>
+          <div class="control note"><b>중복 최소화:</b> 주변 영역 crop은 저장하지 않고, PDF 내부의 raw 원본 이미지만 보존합니다.</div>
+          <input id="cropRegions" type="checkbox" hidden>
+          <label class="control disabled" id="cropMarginWrap" hidden>주변 crop 여백
+            <select id="cropMargin"><option value="0.07" selected>7%</option></select>
           </label>
         </div>
       </div>
@@ -71,12 +67,12 @@
               <option value="loose">민감 · 더 많이 찾기</option>
             </select>
           </label>
-          <div class="control note">표는 <b>원본 crop 이미지</b>를 항상 같이 저장합니다. Markdown 표가 일부 틀려도 시각 정보는 보존됩니다.</div>
+          <div class="control note">표는 <b>원본 crop 이미지</b>를 같이 저장합니다. Markdown 표가 일부 틀려도 시각 정보는 보존됩니다.</div>
         </div>
       </div>
     </div>
 
-    <div class="hint" id="modeHint"><b>현재:</b> 기본 변환 · 전체 페이지 PNG + 페이지별 텍스트</div>
+    <div class="hint" id="modeHint"><b>현재:</b> 기본 변환 · 전체 페이지 이미지 + 페이지별 텍스트</div>
 
     <div class="actions">
       <button id="convert" disabled>변환하기</button>
@@ -90,7 +86,7 @@
     <div class="previewGrid"><img id="thumb" alt="첫 페이지 미리보기"><pre id="mdPreview"></pre></div>
   </section>
 
-  <p class="foot">기본 출력: <code>AI_READY.md</code> · <code>manifest.json</code> · <code>pages/</code><br>선택 기능에 따라 <code>figures/</code> · <code>regions/</code> · <code>tables/</code>가 추가됩니다.</p>
+  <p class="foot">기본 출력: <code>AI_READY.md</code> · <code>manifest.json</code> · <code>pages/</code><br>선택 기능에 따라 <code>figures/</code> · <code>tables/</code>가 추가됩니다.</p>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script type="module" src="app.js"></script>
