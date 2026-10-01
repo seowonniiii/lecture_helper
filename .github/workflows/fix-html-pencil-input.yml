@@ -1,0 +1,31 @@
+name: Fix HTML Pencil Input
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - tools/fix_html_pencil_input.py
+      - .github/workflows/fix-html-pencil-input.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply Pencil input fix
+        run: python tools/fix_html_pencil_input.py
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add html-pencil-ipad/ContentView.swift
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Fix Apple Pencil drawing input over HTML"
+            git push
+          fi
