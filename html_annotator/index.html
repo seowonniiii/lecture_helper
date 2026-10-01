@@ -6,7 +6,18 @@
 <meta name="theme-color" content="#111827">
 <title>HTML Pencil Annotator · Lecture Helper</title>
 <style>
-*{box-sizing:border-box}:root{--bg:#f3f4f6;--line:#d1d5db;--text:#111827;--muted:#6b7280}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif}body{display:flex;flex-direction:column}.topbar{flex:0 0 auto;background:rgba(255,255,255,.97);border-bottom:1px solid var(--line);padding:max(8px,env(safe-area-inset-top)) 10px 8px;backdrop-filter:blur(12px);z-index:10}.row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.row+.row{margin-top:7px}.brand{font-weight:900;margin-right:4px;white-space:nowrap}button,.file-label{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);border-radius:11px;padding:8px 11px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}button:hover,.file-label:hover{background:#f9fafb}button.active{background:#111827;color:#fff;border-color:#111827}button.primary{background:#2563eb;color:#fff;border-color:#2563eb}.danger{color:#b91c1c}button:disabled{opacity:.4;cursor:default}input[type=file]{display:none}.spacer{flex:1}.status{font-size:12px;color:var(--muted);min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.color-wrap{display:flex;align-items:center;gap:4px;padding:3px 5px;border:1px solid var(--line);border-radius:11px;background:#fff}input[type=color]{width:30px;height:28px;border:0;padding:0;background:transparent}input[type=range]{width:100px}.range-label{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}.check{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#374151;white-space:nowrap;padding:0 3px}.viewer-wrap{position:relative;flex:1;min-height:0;background:#cfd4dc}iframe{display:block;width:100%;height:100%;border:0;background:#fff}.empty{position:absolute;inset:0;display:grid;place-items:center;padding:30px;text-align:center;color:#6b7280;pointer-events:none}.empty strong{display:block;color:#111827;font-size:20px;margin-bottom:8px}.empty small{display:block;max-width:650px;line-height:1.6;margin-top:9px}.help{font-size:11px;color:#6b7280;line-height:1.35}@media(max-width:760px){.topbar{padding-left:7px;padding-right:7px}.brand{width:100%}.status{order:20;width:100%}.spacer{display:none}button,.file-label{padding:7px 9px;font-size:12px}.row{gap:5px}.help{display:none}input[type=range]{width:78px}}
+*{box-sizing:border-box}
+:root{--bg:#f3f4f6;--line:#d1d5db;--text:#111827;--muted:#6b7280}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif}
+body{display:flex;flex-direction:column}
+.topbar{flex:0 0 auto;background:rgba(255,255,255,.97);border-bottom:1px solid var(--line);padding:max(8px,env(safe-area-inset-top)) 10px 8px;backdrop-filter:blur(12px);z-index:10}
+.row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.row+.row{margin-top:7px}.brand{font-weight:900;margin-right:4px;white-space:nowrap}
+button,.file-label{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);border-radius:11px;padding:8px 11px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+button:hover,.file-label:hover{background:#f9fafb}button.active{background:#111827;color:#fff;border-color:#111827}button.primary{background:#2563eb;color:#fff;border-color:#2563eb}.danger{color:#b91c1c}button:disabled{opacity:.4;cursor:default}
+input[type=file]{display:none}.spacer{flex:1}.status{font-size:12px;color:var(--muted);min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.color-wrap{display:flex;align-items:center;gap:4px;padding:3px 5px;border:1px solid var(--line);border-radius:11px;background:#fff}input[type=color]{width:30px;height:28px;border:0;padding:0;background:transparent}input[type=range]{width:100px}.range-label{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}.check{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#374151;white-space:nowrap;padding:0 3px}
+.viewer-wrap{position:relative;flex:1;min-height:0;background:#cfd4dc}iframe{display:block;width:100%;height:100%;border:0;background:#fff}.empty{position:absolute;inset:0;display:grid;place-items:center;padding:30px;text-align:center;color:#6b7280;pointer-events:none}.empty strong{display:block;color:#111827;font-size:20px;margin-bottom:8px}.empty small{display:block;max-width:650px;line-height:1.6;margin-top:9px}.help{font-size:11px;color:#6b7280;line-height:1.35}
+@media(max-width:760px){.topbar{padding-left:7px;padding-right:7px}.brand{width:100%}.status{order:20;width:100%}.spacer{display:none}button,.file-label{padding:7px 9px;font-size:12px}.row{gap:5px}.help{display:none}input[type=range]{width:78px}}
 </style>
 </head>
 <body>
@@ -20,63 +31,213 @@
     <div class="spacer"></div><div id="status" class="status">HTML 파일을 열어주세요.</div>
   </div>
   <div class="row">
-    <button data-tool="hand" class="active">✋ 스크롤</button><button data-tool="pen">✏️ 펜</button><button data-tool="highlighter">🖍️ 형광펜</button><button data-tool="eraser">🧽 지우개</button>
+    <button data-tool="hand" class="active">✋ 스크롤/클릭</button>
+    <button data-tool="pen">✏️ 펜</button>
+    <button data-tool="highlighter">🖍️ 형광펜</button>
+    <button data-tool="eraser">🧽 지우개</button>
     <div class="color-wrap"><span class="range-label">색</span><input id="color" type="color" value="#e11d48"></div>
     <span class="range-label">굵기 <b id="widthValue">4</b></span><input id="width" type="range" min="1" max="30" step="1" value="4">
     <label class="check"><input id="fingerDraw" type="checkbox"> 손가락도 그리기</label>
-    <button id="undoBtn" disabled>↶ Undo</button><button id="redoBtn" disabled>↷ Redo</button><button id="clearBtn" class="danger" disabled>전체 필기 삭제</button>
-    <span class="help">내부 목차 링크는 현재 HTML 안에서 이동 · 외부 링크만 새 탭 · 현재 파일/필기는 유지</span>
+    <button id="undoBtn" disabled>↶ Undo</button>
+    <button id="redoBtn" disabled>↷ Redo</button>
+    <button id="clearBtn" class="danger" disabled>전체 필기 삭제</button>
+    <span class="help">원본 HTML 스크립트/사진/목차/확대 기능 유지 · #내부링크는 원본 그대로 작동</span>
   </div>
 </header>
 <main class="viewer-wrap">
-  <iframe id="viewer" sandbox="allow-same-origin" title="HTML preview"></iframe>
-  <div id="empty" class="empty"><div><strong>HTML 파일 위에 바로 필기</strong>이미지가 HTML 안에 들어있는 단일 HTML을 그대로 엽니다.<small>원본 HTML을 DOMParser로 다시 조립하지 않고 그대로 렌더링한 뒤 필기 레이어만 얹습니다.</small></div></div>
+  <iframe id="viewer" sandbox="allow-same-origin allow-scripts" title="HTML preview"></iframe>
+  <div id="empty" class="empty"><div><strong>HTML 파일 위에 바로 필기</strong>JavaScript로 사진을 넣는 단일 HTML도 원본 동작 그대로 엽니다.<small>스크롤/클릭 모드에서는 원본 HTML 버튼·목차·사진 확대를 사용할 수 있고, 펜 모드에서만 필기 레이어가 입력을 받습니다.</small></div></div>
 </main>
 <script>
 (() => {
-const $=id=>document.getElementById(id),viewer=$('viewer'),fileInput=$('fileInput'),saveBtn=$('saveBtn'),status=$('status'),empty=$('empty'),colorInput=$('color'),widthInput=$('width'),widthValue=$('widthValue'),fingerDraw=$('fingerDraw'),undoBtn=$('undoBtn'),redoBtn=$('redoBtn'),clearBtn=$('clearBtn');
+const $=id=>document.getElementById(id);
+const viewer=$('viewer'),fileInput=$('fileInput'),saveBtn=$('saveBtn'),status=$('status'),empty=$('empty'),colorInput=$('color'),widthInput=$('width'),widthValue=$('widthValue'),fingerDraw=$('fingerDraw'),undoBtn=$('undoBtn'),redoBtn=$('redoBtn'),clearBtn=$('clearBtn');
 let tool='hand',fileName='document.html',storageKey='',svg=null,drawing=false,activePath=null,points=[],history=[],historyIndex=-1,resizeObserver=null,sourceHtml='';
-$('homeBtn').onclick=()=>location.href='../'; widthInput.oninput=()=>widthValue.textContent=widthInput.value;
+
+$('homeBtn').onclick=()=>location.href='../';
+widthInput.oninput=()=>widthValue.textContent=widthInput.value;
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
-function setTool(next){tool=next;document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));syncInteractionMode();if(svg)status.textContent=tool==='hand'?'스크롤/링크 모드':`${tool==='pen'?'펜':tool==='highlighter'?'형광펜':'지우개'} 모드`}
-function syncInteractionMode(){if(!svg)return;if(tool==='hand'){svg.style.pointerEvents='none';svg.style.touchAction='auto'}else{svg.style.pointerEvents='auto';svg.style.touchAction=fingerDraw.checked?'none':'pan-x pan-y pinch-zoom'}} fingerDraw.onchange=syncInteractionMode;
-fileInput.onchange=async e=>{const f=e.target.files?.[0];if(!f)return;try{sourceHtml=await f.text();fileName=f.name||'document.html';storageKey=`lh-html-annotator:${fileName}:${f.size}:${f.lastModified}`;status.textContent=`${fileName} 불러오는 중…`;viewer.onload=()=>setupViewer();viewer.srcdoc=sourceHtml}catch(err){console.error(err);status.textContent='HTML 파일을 열지 못했습니다.'}};
-function setupViewer(){const doc=viewer.contentDocument;if(!doc?.documentElement)return;empty.style.display='none';if(resizeObserver)resizeObserver.disconnect();
-  // 흔한 lazy-load HTML도 스크립트 없이 이미지가 보이도록 보완
-  for(const img of doc.images){if((!img.getAttribute('src')||img.getAttribute('src')==='#'||img.getAttribute('src')==='about:blank')){for(const k of ['data-src','data-original','data-lazy-src','data-url']){const v=img.getAttribute(k);if(v){img.setAttribute('src',v);break}}}const ds=img.getAttribute('data-srcset');if(!img.getAttribute('srcset')&&ds)img.setAttribute('srcset',ds)}
-  // 기존 필기 레이어가 들어있는 annotated HTML 재오픈도 지원
-  const old=doc.getElementById('lh-annotation-layer');let existingMarkup='';if(old){existingMarkup=[...old.querySelectorAll('path')].map(p=>p.outerHTML).join('');old.remove()}
-  svg=doc.createElementNS('http://www.w3.org/2000/svg','svg');svg.id='lh-annotation-layer';svg.setAttribute('data-lecture-helper-annotation','true');svg.style.cssText='position:absolute;left:0;top:0;z-index:2147483646;overflow:visible;pointer-events:none;user-select:none;-webkit-user-select:none;';svg.innerHTML=existingMarkup;(doc.body||doc.documentElement).appendChild(svg);[...svg.querySelectorAll('path')].forEach(preparePath);
-  // 링크/폼이 현재 문서를 교체하지 못하도록 차단하고 내부 anchor만 같은 문서에서 이동
-  doc.addEventListener('click',handleDocumentClick,true);doc.addEventListener('submit',e=>{e.preventDefault();status.textContent='폼 제출은 현재 HTML을 보호하기 위해 차단됨'},true);
-  sizeLayer();requestAnimationFrame(sizeLayer);setTimeout(sizeLayer,250);setTimeout(sizeLayer,1000);if('ResizeObserver'in window){resizeObserver=new ResizeObserver(sizeLayer);resizeObserver.observe(doc.documentElement);if(doc.body)resizeObserver.observe(doc.body)}[...doc.images].forEach(img=>{if(!img.complete)img.addEventListener('load',sizeLayer,{once:true})});
-  svg.addEventListener('pointerdown',pointerDown);svg.addEventListener('pointermove',pointerMove);svg.addEventListener('pointerup',pointerUp);svg.addEventListener('pointercancel',pointerUp);
-  const stored=localStorage.getItem(storageKey);if(!existingMarkup&&stored){try{restoreState(JSON.parse(stored),false)}catch(_){}}history=[captureState()];historyIndex=0;updateHistoryButtons();syncInteractionMode();saveBtn.disabled=false;clearBtn.disabled=false;
-  setTimeout(()=>{const imgs=[...doc.images],broken=imgs.filter(i=>i.complete&&i.naturalWidth===0).length;status.textContent=broken?`${fileName} · 이미지 ${broken}개 로딩 실패`:`${fileName} · 준비됨 · 이미지 ${imgs.length}개`},700)
+
+function setTool(next){
+  tool=next;
+  document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));
+  syncInteractionMode();
+  if(svg)status.textContent=tool==='hand'?'원본 HTML 조작 가능 · 스크롤/클릭 모드':`${tool==='pen'?'펜':tool==='highlighter'?'형광펜':'지우개'} 모드`;
 }
-function handleDocumentClick(e){const a=e.target?.closest?.('a[href]');if(!a)return;const raw=(a.getAttribute('href')||'').trim();if(!raw)return;e.preventDefault();e.stopPropagation();
-  if(raw==='#'){viewer.contentWindow.scrollTo({top:0,behavior:'smooth'});return}
-  // #anchor 또는 현재 파일명#anchor 형태
-  let hash='';if(raw.startsWith('#'))hash=raw;else{try{const u=new URL(raw,'https://lh.local/'+encodeURIComponent(fileName));if(u.hash&&(u.pathname==='/' + encodeURIComponent(fileName)||u.pathname.endsWith('/'+encodeURIComponent(fileName))))hash=u.hash}catch(_){}}
-  if(hash){let id='';try{id=decodeURIComponent(hash.slice(1))}catch(_){id=hash.slice(1)};let target=docById(id);if(!target){try{target=viewer.contentDocument.querySelector(`[name="${cssEscape(id)}"]`)}catch(_){}}if(target){target.scrollIntoView({behavior:'smooth',block:'start'});status.textContent=`문서 내부 이동 · ${id}`;}else status.textContent=`내부 링크 위치를 찾지 못함 · ${id}`;return}
-  // javascript:, data:, blob:, file: 등은 현재 문서 보호를 위해 실행/이동하지 않음
-  if(/^(javascript:|data:|blob:|file:)/i.test(raw)){status.textContent='현재 HTML을 보호하기 위해 이 링크 이동을 차단함';return}
-  try{const u=new URL(raw);if(/^https?:$/i.test(u.protocol)){window.open(u.href,'_blank','noopener,noreferrer');status.textContent='외부 링크를 새 탭으로 열었음 · 현재 HTML 유지';return}}catch(_){}
-  status.textContent='다른 로컬 HTML로 이동하는 링크는 현재 파일 유지를 위해 차단됨';
+function syncInteractionMode(){
+  if(!svg)return;
+  if(tool==='hand'){
+    svg.style.pointerEvents='none';
+    svg.style.touchAction='auto';
+  }else{
+    svg.style.pointerEvents='auto';
+    svg.style.touchAction=fingerDraw.checked?'none':'pan-x pan-y pinch-zoom';
+  }
 }
-function docById(id){return viewer.contentDocument.getElementById(id)}function cssEscape(s){return window.CSS?.escape?CSS.escape(s):String(s).replace(/["\\]/g,'\\$&')}
-function sizeLayer(){if(!svg||!viewer.contentDocument)return;const doc=viewer.contentDocument,body=doc.body,root=doc.documentElement,w=Math.max(root.scrollWidth,root.clientWidth,body?body.scrollWidth:0,viewer.clientWidth),h=Math.max(root.scrollHeight,root.clientHeight,body?body.scrollHeight:0,viewer.clientHeight);svg.setAttribute('width',w);svg.setAttribute('height',h);svg.setAttribute('viewBox',`0 0 ${w} ${h}`)}
-function canDrawWith(e){if(tool==='hand')return false;if(e.pointerType==='touch'&&!fingerDraw.checked)return false;return true}function pointFromEvent(e){const win=viewer.contentWindow;return[e.clientX+win.scrollX,e.clientY+win.scrollY]}
-function pointerDown(e){if(!canDrawWith(e))return;if(e.pointerType!=='touch'||fingerDraw.checked)e.preventDefault();if(tool==='eraser'){drawing=true;eraseAt(e);try{svg.setPointerCapture(e.pointerId)}catch(_){}return}drawing=true;points=[pointFromEvent(e)];activePath=viewer.contentDocument.createElementNS('http://www.w3.org/2000/svg','path');const baseWidth=Number(widthInput.value);activePath.setAttribute('fill','none');activePath.setAttribute('stroke',colorInput.value);activePath.setAttribute('stroke-linecap','round');activePath.setAttribute('stroke-linejoin','round');activePath.setAttribute('stroke-width',tool==='highlighter'?Math.max(8,baseWidth*4):baseWidth);activePath.setAttribute('opacity',tool==='highlighter'?'0.28':'1');activePath.setAttribute('data-tool',tool);activePath.setAttribute('data-pointer',e.pointerType||'unknown');if(tool==='highlighter')activePath.style.mixBlendMode='multiply';preparePath(activePath);svg.appendChild(activePath);updatePath();try{svg.setPointerCapture(e.pointerId)}catch(_){}}
-function pointerMove(e){if(!drawing||!canDrawWith(e))return;if(e.pointerType!=='touch'||fingerDraw.checked)e.preventDefault();if(tool==='eraser'){eraseAt(e);return}if(!activePath)return;points.push(pointFromEvent(e));updatePath()}
-function pointerUp(e){if(!drawing)return;drawing=false;if(activePath&&points.length===1){const[x,y]=points[0];activePath.setAttribute('d',`M ${x} ${y} l .01 .01`)}activePath=null;points=[];commitState();try{svg.releasePointerCapture(e.pointerId)}catch(_){}}
-function updatePath(){if(!activePath||!points.length)return;if(points.length<3){activePath.setAttribute('d',`M ${points[0][0]} ${points[0][1]} L ${points[points.length-1][0]} ${points[points.length-1][1]}`);return}let d=`M ${points[0][0]} ${points[0][1]}`;for(let i=1;i<points.length-1;i++){const p=points[i],n=points[i+1],mx=(p[0]+n[0])/2,my=(p[1]+n[1])/2;d+=` Q ${p[0]} ${p[1]} ${mx} ${my}`}const last=points[points.length-1];d+=` L ${last[0]} ${last[1]}`;activePath.setAttribute('d',d)}
-function preparePath(p){p.style.pointerEvents='stroke';p.style.vectorEffect='non-scaling-stroke'}function eraseAt(e){const doc=viewer.contentDocument,t=doc.elementFromPoint(e.clientX,e.clientY);if(t?.tagName?.toLowerCase()==='path'&&t.closest('#lh-annotation-layer'))t.remove()}
+fingerDraw.onchange=syncInteractionMode;
+
+fileInput.onchange=async e=>{
+  const f=e.target.files?.[0];
+  if(!f)return;
+  try{
+    sourceHtml=await f.text();
+    fileName=f.name||'document.html';
+    storageKey=`lh-html-annotator:${fileName}:${f.size}:${f.lastModified}`;
+    status.textContent=`${fileName} 불러오는 중…`;
+    viewer.onload=()=>setupViewer();
+    viewer.srcdoc=sourceHtml;
+  }catch(err){
+    console.error(err);
+    status.textContent='HTML 파일을 열지 못했습니다.';
+  }
+};
+
+function setupViewer(){
+  const doc=viewer.contentDocument;
+  if(!doc?.documentElement)return;
+  empty.style.display='none';
+  if(resizeObserver)resizeObserver.disconnect();
+
+  // 원본 HTML script가 실행된 뒤 DOM에 사진/기능이 만들어진 상태에서 필기 레이어만 추가
+  const old=doc.getElementById('lh-annotation-layer');
+  let existingMarkup='';
+  if(old){
+    existingMarkup=[...old.querySelectorAll('path')].map(p=>p.outerHTML).join('');
+    old.remove();
+  }
+
+  svg=doc.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.id='lh-annotation-layer';
+  svg.setAttribute('data-lecture-helper-annotation','true');
+  svg.style.cssText='position:absolute;left:0;top:0;z-index:2147483646;overflow:visible;pointer-events:none;user-select:none;-webkit-user-select:none;';
+  svg.innerHTML=existingMarkup;
+  (doc.body||doc.documentElement).appendChild(svg);
+  [...svg.querySelectorAll('path')].forEach(preparePath);
+
+  // #내부 링크는 원본 HTML에 맡김. 문서 밖으로 나가는 링크만 현재 작업 보호를 위해 처리.
+  doc.addEventListener('click',e=>{
+    const a=e.target?.closest?.('a[href]');
+    if(!a)return;
+    const raw=(a.getAttribute('href')||'').trim();
+    if(!raw||raw.startsWith('#'))return;
+    if(/^(javascript:|data:|blob:|file:)/i.test(raw)){
+      e.preventDefault();
+      status.textContent='현재 작업을 보호하기 위해 이 링크 이동을 차단함';
+      return;
+    }
+    try{
+      const u=new URL(raw,location.href);
+      if(/^https?:$/i.test(u.protocol)){
+        e.preventDefault();
+        window.open(u.href,'_blank','noopener,noreferrer');
+        status.textContent='외부 링크를 새 탭으로 열었음 · 현재 HTML/필기 유지';
+        return;
+      }
+    }catch(_){}
+    e.preventDefault();
+    status.textContent='다른 로컬 문서로 이동하는 링크는 현재 HTML 유지를 위해 차단됨';
+  },true);
+
+  sizeLayer();
+  requestAnimationFrame(sizeLayer);
+  setTimeout(sizeLayer,250);
+  setTimeout(sizeLayer,1000);
+  setTimeout(sizeLayer,2000);
+
+  if('ResizeObserver'in window){
+    resizeObserver=new ResizeObserver(sizeLayer);
+    resizeObserver.observe(doc.documentElement);
+    if(doc.body)resizeObserver.observe(doc.body);
+  }
+  [...doc.images].forEach(img=>{if(!img.complete)img.addEventListener('load',sizeLayer,{once:true})});
+
+  svg.addEventListener('pointerdown',pointerDown);
+  svg.addEventListener('pointermove',pointerMove);
+  svg.addEventListener('pointerup',pointerUp);
+  svg.addEventListener('pointercancel',pointerUp);
+
+  const stored=localStorage.getItem(storageKey);
+  if(!existingMarkup&&stored){try{restoreState(JSON.parse(stored),false)}catch(_){}}
+  history=[captureState()];historyIndex=0;updateHistoryButtons();syncInteractionMode();
+  saveBtn.disabled=false;clearBtn.disabled=false;
+
+  setTimeout(()=>{
+    const imgs=[...doc.images],loaded=imgs.filter(i=>i.naturalWidth>0).length,broken=imgs.filter(i=>i.complete&&i.naturalWidth===0).length;
+    status.textContent=broken?`${fileName} · 이미지 ${loaded}/${imgs.length} 로드 · 실패 ${broken}`:`${fileName} · 준비됨 · 이미지 ${loaded}/${imgs.length}`;
+  },1200);
+}
+
+function sizeLayer(){
+  if(!svg||!viewer.contentDocument)return;
+  const doc=viewer.contentDocument,body=doc.body,root=doc.documentElement;
+  const w=Math.max(root.scrollWidth,root.clientWidth,body?body.scrollWidth:0,viewer.clientWidth);
+  const h=Math.max(root.scrollHeight,root.clientHeight,body?body.scrollHeight:0,viewer.clientHeight);
+  svg.setAttribute('width',w);svg.setAttribute('height',h);svg.setAttribute('viewBox',`0 0 ${w} ${h}`);
+}
+function canDrawWith(e){if(tool==='hand')return false;if(e.pointerType==='touch'&&!fingerDraw.checked)return false;return true}
+function pointFromEvent(e){const win=viewer.contentWindow;return[e.clientX+win.scrollX,e.clientY+win.scrollY]}
+
+function pointerDown(e){
+  if(!canDrawWith(e))return;
+  if(e.pointerType!=='touch'||fingerDraw.checked)e.preventDefault();
+  if(tool==='eraser'){
+    drawing=true;eraseAt(e);try{svg.setPointerCapture(e.pointerId)}catch(_){}return;
+  }
+  drawing=true;points=[pointFromEvent(e)];
+  activePath=viewer.contentDocument.createElementNS('http://www.w3.org/2000/svg','path');
+  const baseWidth=Number(widthInput.value);
+  activePath.setAttribute('fill','none');activePath.setAttribute('stroke',colorInput.value);activePath.setAttribute('stroke-linecap','round');activePath.setAttribute('stroke-linejoin','round');
+  activePath.setAttribute('stroke-width',tool==='highlighter'?Math.max(8,baseWidth*4):baseWidth);activePath.setAttribute('opacity',tool==='highlighter'?'0.28':'1');activePath.setAttribute('data-tool',tool);activePath.setAttribute('data-pointer',e.pointerType||'unknown');
+  if(tool==='highlighter')activePath.style.mixBlendMode='multiply';
+  preparePath(activePath);svg.appendChild(activePath);updatePath();try{svg.setPointerCapture(e.pointerId)}catch(_){}
+}
+function pointerMove(e){
+  if(!drawing||!canDrawWith(e))return;
+  if(e.pointerType!=='touch'||fingerDraw.checked)e.preventDefault();
+  if(tool==='eraser'){eraseAt(e);return}
+  if(!activePath)return;
+  points.push(pointFromEvent(e));updatePath();
+}
+function pointerUp(e){
+  if(!drawing)return;drawing=false;
+  if(activePath&&points.length===1){const[x,y]=points[0];activePath.setAttribute('d',`M ${x} ${y} l .01 .01`)}
+  activePath=null;points=[];commitState();try{svg.releasePointerCapture(e.pointerId)}catch(_){}
+}
+function updatePath(){
+  if(!activePath||!points.length)return;
+  if(points.length<3){activePath.setAttribute('d',`M ${points[0][0]} ${points[0][1]} L ${points[points.length-1][0]} ${points[points.length-1][1]}`);return}
+  let d=`M ${points[0][0]} ${points[0][1]}`;
+  for(let i=1;i<points.length-1;i++){const p=points[i],n=points[i+1],mx=(p[0]+n[0])/2,my=(p[1]+n[1])/2;d+=` Q ${p[0]} ${p[1]} ${mx} ${my}`}
+  const last=points[points.length-1];d+=` L ${last[0]} ${last[1]}`;activePath.setAttribute('d',d);
+}
+function preparePath(p){p.style.pointerEvents='stroke';p.style.vectorEffect='non-scaling-stroke'}
+function eraseAt(e){const doc=viewer.contentDocument,t=doc.elementFromPoint(e.clientX,e.clientY);if(t?.tagName?.toLowerCase()==='path'&&t.closest('#lh-annotation-layer'))t.remove()}
+
 function captureState(){return svg?[...svg.querySelectorAll('path')].map(p=>({d:p.getAttribute('d')||'',stroke:p.getAttribute('stroke')||'#000',width:p.getAttribute('stroke-width')||'4',opacity:p.getAttribute('opacity')||'1',tool:p.getAttribute('data-tool')||'pen',pointer:p.getAttribute('data-pointer')||'',blend:p.style.mixBlendMode||''})):[]}
-function restoreState(state,persist=true){if(!svg)return;svg.querySelectorAll('path').forEach(p=>p.remove());for(const item of state||[]){const p=viewer.contentDocument.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',item.d||'');p.setAttribute('fill','none');p.setAttribute('stroke',item.stroke||'#000');p.setAttribute('stroke-width',item.width||'4');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');p.setAttribute('opacity',item.opacity||'1');p.setAttribute('data-tool',item.tool||'pen');if(item.pointer)p.setAttribute('data-pointer',item.pointer);if(item.blend)p.style.mixBlendMode=item.blend;preparePath(p);svg.appendChild(p)}if(persist)persistState()}
-function commitState(){if(!svg)return;const state=captureState();history=history.slice(0,historyIndex+1);history.push(state);if(history.length>101)history.shift();else historyIndex++;if(history.length>101)historyIndex=history.length-1;persistState();updateHistoryButtons()}function persistState(){if(!storageKey||!svg)return;try{localStorage.setItem(storageKey,JSON.stringify(captureState()))}catch(_){}}function updateHistoryButtons(){undoBtn.disabled=historyIndex<=0;redoBtn.disabled=historyIndex<0||historyIndex>=history.length-1}
-undoBtn.onclick=()=>{if(historyIndex<=0)return;historyIndex--;restoreState(history[historyIndex]);updateHistoryButtons()};redoBtn.onclick=()=>{if(historyIndex>=history.length-1)return;historyIndex++;restoreState(history[historyIndex]);updateHistoryButtons()};clearBtn.onclick=()=>{if(!svg||!svg.querySelector('path'))return;if(!confirm('현재 HTML의 모든 필기를 삭제할까요?'))return;svg.querySelectorAll('path').forEach(p=>p.remove());commitState()};
-saveBtn.onclick=()=>{const doc=viewer.contentDocument;if(!doc||!svg)return;sizeLayer();const clone=doc.documentElement.cloneNode(true),layer=clone.querySelector('#lh-annotation-layer');if(layer){layer.style.pointerEvents='none';layer.style.touchAction='auto';layer.querySelectorAll('path').forEach(p=>p.style.pointerEvents='none')}const out='<!doctype html>\n'+clone.outerHTML,blob=new Blob([out],{type:'text/html;charset=utf-8'}),a=document.createElement('a'),base=fileName.replace(/\.html?$/i,'');a.href=URL.createObjectURL(blob);a.download=`${base}_annotated.html`;document.body.appendChild(a);a.click();const u=a.href;a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);status.textContent=`${base}_annotated.html 저장됨`};
+function restoreState(state,persist=true){
+  if(!svg)return;svg.querySelectorAll('path').forEach(p=>p.remove());
+  for(const item of state||[]){const p=viewer.contentDocument.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',item.d||'');p.setAttribute('fill','none');p.setAttribute('stroke',item.stroke||'#000');p.setAttribute('stroke-width',item.width||'4');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');p.setAttribute('opacity',item.opacity||'1');p.setAttribute('data-tool',item.tool||'pen');if(item.pointer)p.setAttribute('data-pointer',item.pointer);if(item.blend)p.style.mixBlendMode=item.blend;preparePath(p);svg.appendChild(p)}
+  if(persist)persistState();
+}
+function commitState(){
+  if(!svg)return;const state=captureState();history=history.slice(0,historyIndex+1);history.push(state);if(history.length>101)history.shift();else historyIndex++;if(history.length>101)historyIndex=history.length-1;persistState();updateHistoryButtons();
+}
+function persistState(){if(!storageKey||!svg)return;try{localStorage.setItem(storageKey,JSON.stringify(captureState()))}catch(_){}}
+function updateHistoryButtons(){undoBtn.disabled=historyIndex<=0;redoBtn.disabled=historyIndex<0||historyIndex>=history.length-1}
+undoBtn.onclick=()=>{if(historyIndex<=0)return;historyIndex--;restoreState(history[historyIndex]);updateHistoryButtons()};
+redoBtn.onclick=()=>{if(historyIndex>=history.length-1)return;historyIndex++;restoreState(history[historyIndex]);updateHistoryButtons()};
+clearBtn.onclick=()=>{if(!svg||!svg.querySelector('path'))return;if(!confirm('현재 HTML의 모든 필기를 삭제할까요?'))return;svg.querySelectorAll('path').forEach(p=>p.remove());commitState()};
+
+saveBtn.onclick=()=>{
+  const doc=viewer.contentDocument;if(!doc||!svg)return;
+  sizeLayer();
+  const clone=doc.documentElement.cloneNode(true),layer=clone.querySelector('#lh-annotation-layer');
+  if(layer){layer.style.pointerEvents='none';layer.style.touchAction='auto';layer.querySelectorAll('path').forEach(p=>p.style.pointerEvents='none')}
+  const out='<!doctype html>\n'+clone.outerHTML;
+  const blob=new Blob([out],{type:'text/html;charset=utf-8'}),a=document.createElement('a'),base=fileName.replace(/\.html?$/i,'');
+  a.href=URL.createObjectURL(blob);a.download=`${base}_annotated.html`;document.body.appendChild(a);a.click();const u=a.href;a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);
+  status.textContent=`${base}_annotated.html 저장됨`;
+};
 })();
 </script>
 </body>
