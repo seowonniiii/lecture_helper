@@ -217,15 +217,6 @@ struct HTMLDocumentPicker: UIViewControllerRepresentable {
     }
 }
 
-// 손가락은 아래 HTML/스크롤로 통과시키고 Apple Pencil 터치만 받는 캔버스.
-final class PencilOnlyHitCanvasView: PKCanvasView {
-    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        guard super.point(inside: point, with: event) else { return false }
-        guard let touches = event?.allTouches, !touches.isEmpty else { return false }
-        return touches.contains { $0.type == .pencil }
-    }
-}
-
 struct HTMLPencilDocumentView: UIViewRepresentable {
     let htmlURL: URL
     let readAccessURL: URL
@@ -252,7 +243,7 @@ final class HTMLPencilCanvasView: UIView, UIScrollViewDelegate, WKNavigationDele
     private let scrollView = UIScrollView()
     private let contentView = UIView()
     private let webView: WKWebView
-    private let canvasView = PencilOnlyHitCanvasView()
+    private let canvasView = PKCanvasView()
     private let toolPicker = PKToolPicker()
 
     private let documentWidth: CGFloat = 1024
@@ -299,10 +290,14 @@ final class HTMLPencilCanvasView: UIView, UIScrollViewDelegate, WKNavigationDele
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
         canvasView.isScrollEnabled = false
+        canvasView.isUserInteractionEnabled = true
+        canvasView.delaysContentTouches = false
         canvasView.drawingPolicy = .pencilOnly
         canvasView.delegate = self
-        canvasView.drawingGestureRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
         contentView.addSubview(canvasView)
+
+        // Apple Pencil drawing gets first chance; finger pans still belong to the outer scroll view.
+        scrollView.panGestureRecognizer.require(toFail: canvasView.drawingGestureRecognizer)
 
         toolPicker.addObserver(canvasView)
         updateContentFrames()
