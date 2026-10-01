@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f7f5">
+  <title>PDF → AI Markdown v2</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <span class="badge">v2 · AI Visual Extraction</span>
+    <h1>PDF → AI Markdown</h1>
+    <p>PDF를 브라우저 안에서 처리해 <b>전체 페이지 이미지 + 텍스트 + 개별 시각 요소</b>를 함께 보존합니다.</p>
+  </header>
+  <section class="card">
+    <label class="drop" id="drop" for="file"><div><strong id="dropTitle">PDF를 여기에 놓거나 선택</strong><small>서버 업로드 없이 이 기기에서만 처리됩니다.</small></div></label>
+    <input id="file" type="file" accept="application/pdf,.pdf">
+    <div id="fileInfo" class="fileinfo"></div>
+    <div class="controls">
+      <label class="control">페이지 해상도<select id="scale"><option value="1.5">1.5×</option><option value="2" selected>2× · 권장</option><option value="2.5">2.5×</option><option value="3">3×</option></select></label>
+      <label class="control">이미지 최소 크기<select id="minFigure"><option value="48">48 px · 작은 것도</option><option value="96" selected>96 px · 권장</option><option value="160">160 px</option><option value="240">240 px · 큰 것만</option></select></label>
+      <label class="control">주변 crop 여백<select id="cropMargin"><option value="0.03">3%</option><option value="0.07" selected>7% · 권장</option><option value="0.12">12%</option><option value="0.18">18%</option></select></label>
+      <label class="control check"><input id="layoutText" type="checkbox" checked> 텍스트 읽기 순서 보정</label>
+      <label class="control check"><input id="includePdf" type="checkbox"> ZIP에 원본 PDF 포함</label>
+    </div>
+    <div class="hint"><b>v2:</b> <code>pages/</code>에는 원본 페이지 전체, <code>figures/</code>에는 PDF 내부 raster image, <code>regions/</code>에는 그 이미지가 놓인 주변 영역을 저장합니다. 벡터 표·도식은 전체 페이지 PNG로 안전하게 남습니다.</div>
+    <div class="actions"><button id="convert" disabled>v2 변환하기</button><button id="download" class="secondary" disabled>ZIP 다운로드</button><a class="back" href="../">v1 열기</a></div>
+    <div id="status" class="status"><div class="bar"><div id="progress"></div></div><div id="statusText"></div></div>
+  </section>
+  <section id="preview" class="card preview"><div class="previewHead"><b>첫 페이지 미리보기</b><span id="summary"></span></div><div class="previewGrid"><img id="thumb"><pre id="mdPreview"></pre></div></section>
+  <p class="foot">출력: <code>AI_READY.md</code> · <code>manifest.json</code> · <code>pages/</code> · <code>figures/</code> · <code>regions/</code></p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
