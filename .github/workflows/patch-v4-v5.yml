@@ -1,0 +1,31 @@
+name: Patch V4 and build V5
+
+on:
+  push:
+    paths:
+      - 'tools/patch_v4_compact_and_v5.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply patch and generate V5
+        run: python tools/patch_v4_compact_and_v5.py
+      - name: Validate JavaScript
+        run: |
+          node --check v4/app.js
+          node --check v5/app.js
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add v4/app.js v4/index.html v4/styles.css v5/index.html v5/styles.css v5/app.js
+          git diff --cached --quiet || git commit -m "Add V4 compact notes updates and V5 compact mode"
+          git push
