@@ -26,3 +26,7 @@
 
 /* V4 rendered selection formatting */
 .mdformat{display:flex;gap:3px;padding:2px;border:1px solid var(--border);border-radius:9px;background:#fff}.mdformat .tool{min-height:27px;padding:0 8px;font-size:9px;border:0}.mdformat .fmt-bold{font-size:11px}.mdformat .fmt-exam{color:#dc2626;font-weight:800;background:#fff1f2}.mdformat .fmt-highlight{font-weight:800;background:#fef08a;color:#713f12}.mdformat .tool:active{transform:translateY(1px)}
+
+
+/* V4 transcript drawer */
+.transcript-toggle{min-height:32px;font-size:10px}.noteSplit.transcript-off{grid-template-columns:minmax(0,1fr)}.noteSplit.transcript-off .classNotePane{min-height:440px}.noteSplit.transcript-off .classNotePane .editor{min-height:360px}.noteSplit:not(.transcript-off) .classNotePane .editor{min-height:260px}

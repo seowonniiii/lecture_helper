@@ -23,9 +23,9 @@
     <div class="filebar"><div id="filename" class="file"></div></div>
   </section>
   <aside class="notes">
-    <div class="nhead"><div><small style="color:#6b7280;font-weight:800">PAGE NOTE</small><h2><span id="pLabel">1</span>p.</h2></div></div>
-    <div class="noteSplit">
-      <section class="notePane transcriptPane">
+    <div class="nhead"><div><small style="color:#6b7280;font-weight:800">PAGE NOTE</small><h2><span id="pLabel">1</span>p.</h2></div><button id="transcriptToggle" class="tool transcript-toggle" type="button">전사문 보기</button></div>
+    <div id="noteSplit" class="noteSplit transcript-off">
+      <section id="transcriptPane" class="notePane transcriptPane hidden">
         <div class="paneHead">
           <div><b>📄 .md / 전사문</b><small id="mdFilename">페이지별 전사문 · 수정 가능</small></div>
           <div class="paneActions"><label class="btn mdload">MD 불러오기<input id="mdInput" type="file" accept=".md,text/markdown,text/plain" hidden></label><div class="mdmode"><button id="mdModeRendered" class="tool active" type="button">결과 편집</button><button id="mdModeRaw" class="tool" type="button">원문</button></div><div class="mdformat"><button id="mdBold" class="tool fmt-bold" type="button" title="선택 영역 굵게"><b>B</b></button><button id="mdExam" class="tool fmt-exam" type="button" title="선택 영역 시험강조">시험</button><button id="mdHighlight" class="tool fmt-highlight" type="button" title="선택 영역 하이라이트">형광</button></div><button id="mic" class="btn micbtn">🎤 시작</button></div>
@@ -44,7 +44,7 @@
       </section>
     </div>
     <div class="pinsbox"><b>📌 이 페이지 코멘트 핀</b><div id="pinList" class="pinlist"></div></div>
-    <div class="exports"><button id="docx">Word<br><small>A4 4쪽 배치</small></button><button id="printBtn">PDF<br><small>A4 4쪽 배치</small></button><button id="md">Markdown<br><small>전사문+수업 필기</small></button><button id="json">JSON<br><small>전체 백업</small></button></div>
+    <div class="exports"><button id="docx">Word<br><small>A4 4쪽 배치</small></button><button id="printBtn">PDF<br><small>A4 4쪽 배치</small></button><button id="annotatedPdf">필기 PDF<br><small>원본+펜/형광</small></button><button id="md">Markdown<br><small>수업필기→전사문</small></button><button id="json">JSON<br><small>전체 백업</small></button></div>
   </aside>
 </main>
 <div id="pinPopover" class="pinpopover hidden"><textarea id="pinText" placeholder="이 위치에 짧은 코멘트"></textarea><div class="pinactions"><button id="pinCancel" class="tool">취소</button><button id="pinSave" class="btn primary">저장</button></div></div>

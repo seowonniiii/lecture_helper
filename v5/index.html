@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><title>Lecture Helper V5 Compact</title><link rel="stylesheet" href="./styles.css"></head>
+<body>
+<header class="top"><div class="brand"><b>LH <span>V5</span></b><small id="status">PDF를 열어주세요</small></div><div class="actions"><label class="btn primary">PDF 열기<input id="pdfInput" type="file" accept="application/pdf" hidden></label><button id="exportMd" class="btn">MD 저장</button></div></header>
+<main class="app">
+  <section class="navbar"><button id="prev" class="navbtn">‹</button><input id="pageInput" type="number" min="1" value="1"><span>/ <b id="total">0</b></span><button id="next" class="navbtn">›</button><input id="title" class="title" placeholder="강의 제목"></section>
+  <section class="thumbshell"><button id="thumbPrev" class="railbtn">‹</button><div id="thumbRail" class="thumbrail"><div class="empty">PDF를 열면 현재 페이지 주변 썸네일이 여기에 표시됨</div></div><button id="thumbNext" class="railbtn">›</button></section>
+  <section class="note"><div class="notehead"><div><small>수업 필기</small><h2><span id="pLabel">1</span>p.</h2></div><span id="chars">0자</span></div>
+    <div class="tags"><button data-tag="[시험] ">시험</button><button data-tag="[중요] ">중요</button><button data-tag="[교수설명] ">교수설명</button><button data-tag="[질문] ">질문</button><button id="time">시간</button></div>
+    <textarea id="editor" placeholder="GoodNotes는 왼쪽에 두고, 여기에는 현재 페이지 수업 필기를 계속 적으세요."></textarea>
+  </section>
+  <footer><span id="filename"></span><span>페이지별 자동저장 · PDF 필기 없음 · MD 전용</span></footer>
+</main><div id="toast" class="toast"></div><script type="module" src="./app.js"></script></body></html>

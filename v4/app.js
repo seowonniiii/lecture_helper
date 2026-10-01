@@ -2,11 +2,12 @@ import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build
 import { marked } from 'https://cdn.jsdelivr.net/npm/marked@18.0.14/lib/marked.esm.js';
 import TurndownService from 'https://cdn.jsdelivr.net/npm/turndown@7.2.4/+esm';
 import { gfm } from 'https://cdn.jsdelivr.net/npm/@truto/turndown-plugin-gfm@1.0.3/+esm';
+import { PDFDocument, rgb } from 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm';
 import {Document,Packer,Paragraph,TextRun,HeadingLevel,ImageRun,PageBreak,AlignmentType,Table,TableRow,TableCell,WidthType,PageOrientation} from 'https://cdn.jsdelivr.net/npm/docx@9.8.1/+esm';
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs';
 
 const $=id=>document.getElementById(id);
-const E={shell:$('shell'),pdfInput:$('pdfInput'),emptyPdf:$('emptyPdf'),backupInput:$('backupInput'),status:$('status'),title:$('title'),filename:$('filename'),stage:$('stage'),stageInner:$('stageInner'),empty:$('empty'),pageWrap:$('pageWrap'),pdfCanvas:$('pdfCanvas'),inkCanvas:$('inkCanvas'),pinLayer:$('pinLayer'),page:$('page'),total:$('total'),pLabel:$('pLabel'),prev:$('prev'),next:$('next'),fit:$('fit'),inkColor:$('inkColor'),thin:$('thin'),thick:$('thick'),undo:$('undo'),redo:$('redo'),editor:$('editor'),chars:$('chars'),time:$('time'),mic:$('mic'),transcript:$('transcript'),transcriptChars:$('transcriptChars'),pinList:$('pinList'),docx:$('docx'),printBtn:$('printBtn'),md:$('md'),json:$('json'),toast:$('toast'),printArea:$('printArea'),layoutToggle:$('layoutToggle'),inputBadge:$('inputBadge'),viewCount:$('viewCount'),mdInput:$('mdInput'),mdFilename:$('mdFilename'),mdRendered:$('mdRendered'),mdModeRendered:$('mdModeRendered'),mdModeRaw:$('mdModeRaw'),mdBold:$('mdBold'),mdExam:$('mdExam'),mdHighlight:$('mdHighlight'),pinPopover:$('pinPopover'),pinText:$('pinText'),pinSave:$('pinSave'),pinCancel:$('pinCancel')};
+const E={shell:$('shell'),pdfInput:$('pdfInput'),emptyPdf:$('emptyPdf'),backupInput:$('backupInput'),status:$('status'),title:$('title'),filename:$('filename'),stage:$('stage'),stageInner:$('stageInner'),empty:$('empty'),pageWrap:$('pageWrap'),pdfCanvas:$('pdfCanvas'),inkCanvas:$('inkCanvas'),pinLayer:$('pinLayer'),page:$('page'),total:$('total'),pLabel:$('pLabel'),prev:$('prev'),next:$('next'),fit:$('fit'),inkColor:$('inkColor'),thin:$('thin'),thick:$('thick'),undo:$('undo'),redo:$('redo'),editor:$('editor'),chars:$('chars'),time:$('time'),mic:$('mic'),transcript:$('transcript'),transcriptChars:$('transcriptChars'),pinList:$('pinList'),docx:$('docx'),printBtn:$('printBtn'),md:$('md'),json:$('json'),toast:$('toast'),printArea:$('printArea'),layoutToggle:$('layoutToggle'),inputBadge:$('inputBadge'),viewCount:$('viewCount'),mdInput:$('mdInput'),mdFilename:$('mdFilename'),mdRendered:$('mdRendered'),mdModeRendered:$('mdModeRendered'),mdModeRaw:$('mdModeRaw'),mdBold:$('mdBold'),mdExam:$('mdExam'),mdHighlight:$('mdHighlight'),transcriptToggle:$('transcriptToggle'),transcriptPane:$('transcriptPane'),noteSplit:$('noteSplit'),annotatedPdf:$('annotatedPdf'),pinPopover:$('pinPopover'),pinText:$('pinText'),pinSave:$('pinSave'),pinCancel:$('pinCancel')};
 
 const mdTurndown=new TurndownService({headingStyle:'atx',bulletListMarker:'-',codeBlockStyle:'fenced',emDelimiter:'*',strongDelimiter:'**'});
 mdTurndown.use(gfm);
@@ -392,6 +393,15 @@ bindMdFormatButton(E.mdBold,'bold');
 bindMdFormatButton(E.mdExam,'exam');
 bindMdFormatButton(E.mdHighlight,'highlight');
 
+let transcriptVisible=false;
+function setTranscriptVisible(show){
+  transcriptVisible=!!show;
+  E.transcriptPane?.classList.toggle('hidden',!transcriptVisible);
+  E.noteSplit?.classList.toggle('transcript-off',!transcriptVisible);
+  if(E.transcriptToggle)E.transcriptToggle.textContent=transcriptVisible?'전사문 닫기':'전사문 보기';
+}
+E.transcriptToggle.onclick=()=>setTranscriptVisible(!transcriptVisible);
+
 E.mdModeRendered.onclick=()=>setMdViewMode('rendered');
 E.mdModeRaw.onclick=()=>setMdViewMode('raw');
 E.mdRendered.addEventListener('input',()=>{
@@ -435,19 +445,44 @@ function drawStrokeToContext(ctx,stroke,renderScale=1){
 function dataUrlToUint8(dataUrl){const b=atob(dataUrl.split(',')[1]),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
 function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
 
-E.md.onclick=async()=>{if(!project)return;await Promise.all([saveNote(),saveTranscript()]);const notes=await getByProject(NS,project.id),trans=await getByProject(TS,project.id);let out=`# ${E.title.value||project.title}
+function pdfColor(hex){
+  const s=String(hex||'#e11d48').replace('#','');
+  const full=s.length===3?s.split('').map(x=>x+x).join(''):s.padEnd(6,'0').slice(0,6);
+  return rgb(parseInt(full.slice(0,2),16)/255,parseInt(full.slice(2,4),16)/255,parseInt(full.slice(4,6),16)/255);
+}
+async function exportAnnotatedPdf(){
+  if(!project?.pdfBlob){toast('원본 PDF를 먼저 열어주세요');return}
+  try{
+    toast('필기 PDF 생성 중…');await saveAnnotation();
+    const bytes=await project.pdfBlob.arrayBuffer();
+    const outDoc=await PDFDocument.load(bytes,{ignoreEncryption:false});
+    const annotations=await getByProject(AS,project.id);
+    const pages=outDoc.getPages();
+    for(const row of annotations){
+      const pageNo=Number(row.page);if(!Number.isInteger(pageNo)||pageNo<1||pageNo>pages.length)continue;
+      const page=pages[pageNo-1],{width:w,height:h}=page.getSize();
+      for(const stroke of row.strokes||[]){
+        const pts=stroke?.points||[];if(!pts.length)continue;
+        const color=pdfColor(stroke.color),opacity=stroke.tool==='highlight'?.25:1;
+        const base=Math.max(.55,(Number(stroke.width)||2.2)*.75);
+        if(pts.length===1){
+          const p=pts[0],pressure=stroke.tool==='highlight'?1:(.45+.9*Math.max(.05,Math.min(1,Number(p.p)||.5)));
+          page.drawCircle({x:p.x*w,y:(1-p.y)*h,size:(base*pressure)/2,color,opacity});
+          continue;
+        }
+        for(let i=1;i<pts.length;i++){
+          const a=pts[i-1],b=pts[i],pressure=stroke.tool==='highlight'?1:(.45+.9*Math.max(.05,Math.min(1,((Number(a.p)||.5)+(Number(b.p)||.5))/2)));
+          page.drawLine({start:{x:a.x*w,y:(1-a.y)*h},end:{x:b.x*w,y:(1-b.y)*h},thickness:base*pressure,color,opacity});
+        }
+      }
+    }
+    const outBytes=await outDoc.save();
+    downloadBlob(new Blob([outBytes],{type:'application/pdf'}),`${safe(E.title.value)}_필기.pdf`);toast('필기 PDF 저장 완료');
+  }catch(err){console.error(err);toast('필기 PDF를 만들지 못했습니다')}
+}
+E.annotatedPdf.onclick=exportAnnotatedPdf;
 
-`;for(let p=1;p<=pdfDoc.numPages;p++){const n=notes.find(x=>x.page===p),t=trans.find(x=>x.page===p);out+=`<<<PAGE ${p}>>>
-
-${p}p.
-
-### .md / 전사문
-${t?.text||''}
-
-### 수업 필기
-${n?.text||''}
-
-`}downloadBlob(new Blob([out],{type:'text/markdown;charset=utf-8'}),`${safe(E.title.value)}_notes.md`)};
+E.md.onclick=async()=>{if(!project)return;await Promise.all([saveNote(),saveTranscript()]);const notes=await getByProject(NS,project.id),trans=await getByProject(TS,project.id);let out=`# ${E.title.value||project.title}\n\n`;for(let p=1;p<=pdfDoc.numPages;p++){const n=notes.find(x=>x.page===p),t=trans.find(x=>x.page===p),noteText=n?.text||'',transcriptText=t?.text||'';out+=`<<<PAGE ${p}>>>\n\n### 수업필기\n${noteText}${transcriptText.trim()?`\n\n### 전사문\n${transcriptText}`:''}\n\n`}downloadBlob(new Blob([out],{type:'text/markdown;charset=utf-8'}),`${safe(E.title.value)}_notes.md`)};
 E.json.onclick=async()=>{if(!project)return;await Promise.all([saveProject(),saveNote(),saveTranscript(),saveAnnotation()]);const notes=await getByProject(NS,project.id),transcripts=await getByProject(TS,project.id),annotations=await getByProject(AS,project.id);const payload={version:4,exportedAt:new Date().toISOString(),project:{...project,pdfBlob:undefined},notes,transcripts,annotations};downloadBlob(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),`${safe(E.title.value)}_backup.json`)};
 E.backupInput.onchange=async e=>{const f=e.target.files?.[0];if(!f)return;try{const j=JSON.parse(await f.text());if(!j.project?.id)throw new Error('bad');const id=j.project.id;project={...j.project,id,pdfBlob:null};await put(PS,project);for(const n of j.notes||[])await put(NS,n);for(const t of j.transcripts||[])await put(TS,t);for(const a of j.annotations||[])await put(AS,a);localStorage.setItem(LAST,id);toast('백업을 복원했습니다. 원본 PDF를 다시 열어주세요.')}catch{toast('백업 파일을 읽지 못했습니다')}};
 async function fourUpCell(pageNo){if(pageNo>pdfDoc.numPages)return new TableCell({width:{size:50,type:WidthType.PERCENTAGE},children:[new Paragraph({text:''})]});const c=await composePageImage(pageNo,1.15),png=dataUrlToUint8(c.toDataURL('image/png'));const maxW=245,maxH=315,ratio=c.width/c.height;let w=maxW,h=w/ratio;if(h>maxH){h=maxH;w=h*ratio}return new TableCell({width:{size:50,type:WidthType.PERCENTAGE},children:[new Paragraph({children:[new TextRun({text:`${pageNo}p.`,bold:true,size:18})]}),new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({data:png,transformation:{width:Math.round(w),height:Math.round(h)}})]})]})}
@@ -459,4 +494,4 @@ E.pdfInput.onchange=e=>{const f=e.target.files?.[0];if(f)loadPdfFile(f)};E.empty
 // Mouse/trackpad fallback: clicking page edges changes pages; drawing remains Pencil-only by design.
 E.pageWrap.addEventListener('mouseup',e=>{if(e.button!==0||tool==='pin'||!project)return;const r=E.inkCanvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width;if(x<.08)goPage(currentPage-1);else if(x>.92)goPage(currentPage+1)});
 
-db=await openDb();setMdViewMode(mdViewMode);setupMic();await restoreLast();
+db=await openDb();setMdViewMode(mdViewMode);setTranscriptVisible(false);setupMic();await restoreLast();
