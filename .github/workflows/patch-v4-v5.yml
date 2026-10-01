@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'tools/patch_v4_compact_and_v5.py'
+      - 'tools/patch_v4_compact_and_v5.trigger'
 
 permissions:
   contents: write
