@@ -23,12 +23,13 @@ drop.addEventListener('drop',e=>setFile(e.dataTransfer?.files?.[0]));
 
 function syncFeatureUI(){
   const v=$('extractVisuals').checked,t=$('reconstructTables').checked;
+  $('keepTextColors').disabled=$('textEngine').value!=='mupdf';
   $('extractVisuals').closest('.feature').classList.toggle('enabled',v);
   $('reconstructTables').closest('.feature').classList.toggle('enabled',t);
-  const enabled=[$('textEngine').value==='mupdf'?'MuPDF 한글 텍스트':'PDF.js 기존 텍스트'];if(v)enabled.push('raw 이미지');if(t)enabled.push('표 재구성');
+  const enabled=[$('textEngine').value==='mupdf'?'MuPDF 한글 텍스트':'PDF.js 기존 텍스트'];if($('textEngine').value==='mupdf'&&$('keepTextColors').checked)enabled.push('원본 글자색');if(v)enabled.push('raw 이미지');if(t)enabled.push('표 재구성');
   $('modeHint').innerHTML=`<b>현재:</b> ${enabled.join(' + ')} · 페이지 JPEG ${Math.round(Number($('pageQuality').value)*100)}%`;
 }
-['extractVisuals','reconstructTables','pageQuality','textEngine'].forEach(id=>$(id).addEventListener('change',syncFeatureUI));
+['extractVisuals','reconstructTables','pageQuality','textEngine','keepTextColors'].forEach(id=>$(id).addEventListener('change',syncFeatureUI));
 syncFeatureUI();
 
 function itemRows(items){
@@ -42,7 +43,7 @@ function textFromItems(items,layout){
   return clean(itemRows(items).map(r=>{let s='',end=null;for(const t of r.items){if(end!==null&&t.x-end>Math.max(2.2,t.h*.18))s+=' ';s+=t.str;end=t.x+t.w}return s.replace(/\s+/g,' ').trim()}).filter(Boolean).join('\n'));
 }
 function header(file,pages,scale,pageQuality,features){
-  return `---\nsource_file: "${file.name.replace(/"/g,'\\"')}"\npages: ${pages}\nrender_scale: ${scale}\npage_image_format: "jpeg"\npage_jpeg_quality: ${pageQuality}\ntext_engine_requested: ${features.text_engine}\ngenerated_at: "${new Date().toISOString()}"\nformat: "multimodal-ai-markdown"\nfeatures:\n  visual_extraction: ${features.visuals}\n  table_reconstruction: ${features.tables}\n---\n\n# ${safeBase(file.name)}\n\n> AI 입력용 변환 문서입니다. 전체 페이지는 용량 절약을 위해 JPEG로 저장하고, 개별 CT·병리사진·도식은 raw 이미지로 별도 보존할 수 있습니다.\n\n`;
+  return `---\nsource_file: "${file.name.replace(/"/g,'\\"')}"\npages: ${pages}\nrender_scale: ${scale}\npage_image_format: "jpeg"\npage_jpeg_quality: ${pageQuality}\ntext_engine_requested: ${features.text_engine}\ngenerated_at: "${new Date().toISOString()}"\nformat: "multimodal-ai-markdown"\nfeatures:\n  visual_extraction: ${features.visuals}\n  table_reconstruction: ${features.tables}\n  original_text_colors: ${features.colors}\n---\n\n# ${safeBase(file.name)}\n\n> AI 입력용 변환 문서입니다. 전체 페이지는 용량 절약을 위해 JPEG로 저장하고, 개별 CT·병리사진·도식은 raw 이미지로 별도 보존할 수 있습니다.\n\n`;
 }
 
 async function resolveImage(page,id){try{if(page.objs?.has?.(id))return page.objs.get(id);if(page.commonObjs?.has?.(id))return page.commonObjs.get(id)}catch(e){console.warn('image lookup failed',id,e)}return null}
@@ -124,7 +125,7 @@ async function convert(){
   if(!selectedFile)return;convertBtn.disabled=true;downloadBtn.disabled=true;status.classList.add('show');progress.style.width='2%';statusText.textContent='PDF를 여는 중…';
   let textReader=null;
   try{
-    const features={visuals:$('extractVisuals').checked,tables:$('reconstructTables').checked,text_engine:$('textEngine').value};
+    const features={visuals:$('extractVisuals').checked,tables:$('reconstructTables').checked,text_engine:$('textEngine').value,colors:$('textEngine').value==='mupdf'&&$('keepTextColors').checked};
     // PDF.js transfers its ArrayBuffer to its worker, so provide a copy. MuPDF
     // needs the original bytes to recover Unicode for some embedded fonts.
     const sourceBytes=new Uint8Array(await selectedFile.arrayBuffer());
@@ -142,7 +143,8 @@ async function convert(){
         warnings.push('MuPDF를 시작할 수 없어 PDF.js로 대체했습니다. 이 파일의 한글 주석이 누락될 수 있습니다: '+(error?.message||error));
       }
     }
-    let md=header(selectedFile,pdf.numPages,scale,pageQuality,features),totalVisuals=0,totalTables=0,muPages=0,koPages=0;
+    let md=header(selectedFile,pdf.numPages,scale,pageQuality,features),totalVisuals=0,totalTables=0,muPages=0,koPages=0,colorPages=0,coloredChars=0;
+    const colorUnsafePages=[];
     const manifest={schema:'multimodal-ai-markdown',source_file:selectedFile.name,page_count:pdf.numPages,render_scale:scale,page_image_format:'jpeg',page_jpeg_quality:pageQuality,features,text_engine_loaded:Boolean(textReader),generated_at:new Date().toISOString(),pages:[]};
     if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null}
     for(let n=1;n<=pdf.numPages;n++){
@@ -151,10 +153,11 @@ async function convert(){
       canvas.width=Math.ceil(vp.width);canvas.height=Math.ceil(vp.height);ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);await page.render({canvasContext:ctx,viewport:vp}).promise;
       const pageBlob=await canvasBlob(canvas,'image/jpeg',pageQuality),pageName=`page_${String(n).padStart(3,'0')}.jpg`;pages.file(pageName,pageBlob);if(n===1)previewUrl=URL.createObjectURL(pageBlob);
       const tc=await page.getTextContent({includeMarkedContent:true}),textItems=tc.items||[],pdfText=textFromItems(textItems,layout);
-      let text=pdfText,textSource='pdfjs';
+      let text=pdfText,textSource='pdfjs',selectedRich=null;
       if(textReader){
         try{
-          const muText=clean(textReader.readPage(n,layout));
+          const rich=features.colors?textReader.readPageRich(n,layout):null;
+          const muText=clean(rich?rich.plain:textReader.readPage(n,layout));
           // Prefer the text with more Korean characters: fonts without
           // ToUnicode often look fine but produce empty/garbled PDF.js text.
           const ko=s=>(s.match(/[가-힣]/g)||[]).length;
@@ -162,12 +165,14 @@ async function convert(){
             text=muText;
             textSource='mupdf';
             muPages++;
+            selectedRich=rich;
           }else if(pdfText&&ko(pdfText)>ko(muText)){
             textSource='pdfjs';
           }else if(muText){
             text=muText;
             textSource='mupdf';
             muPages++;
+            selectedRich=rich;
           }
         }catch(error){
           console.warn('MuPDF text extraction failed on page',n,error);
@@ -176,6 +181,16 @@ async function convert(){
       }
       const koreanChars=(text.match(/[가-힣]/g)||[]).length;
       if(koreanChars)koPages++;
+      const colorValid=Boolean(features.colors&&selectedRich&&selectedRich.safe);
+      let colorText=text,colorCounts={},coloredOnPage=0;
+      if(colorValid){
+        colorText=clean(selectedRich.markdown);
+        colorCounts=selectedRich.colors;
+        coloredOnPage=selectedRich.coloredChars;
+        if(coloredOnPage){colorPages++;coloredChars+=coloredOnPage}
+      }else if(features.colors&&selectedRich&&!selectedRich.safe){
+        colorUnsafePages.push(n);
+      }
       let visuals=[],tables=[];
       if(features.visuals){try{visuals=await extractVisuals(page,n,minPx,figs)}catch(e){console.warn('visual extraction failed',n,e)}}
       if(features.tables){try{tables=await extractTables(textItems,canvas,n,scale,sensitivity,tablesFolder,vp1.width,vp1.height)}catch(e){console.warn('table reconstruction failed',n,e)}}
@@ -183,9 +198,11 @@ async function convert(){
       md+=`<!-- PAGE ${n} START -->\n\n## Page ${n}\n\n![Page ${n}](pages/${pageName})\n\n`;
       if(visuals.length){md+='### Extracted visuals\n\n';for(const v of visuals){md+=`#### Visual ${v.reading_order}\n\n![Page ${n} embedded image ${v.reading_order}](${v.raw_image})\n\n- source_size: ${v.source_width}×${v.source_height}\n`;if(v.bbox)md+=`- page_bbox: x=${v.bbox.x}, y=${v.bbox.y}, w=${v.bbox.w}, h=${v.bbox.h}\n`;md+='\n'}}
       if(tables.length){md+='### Reconstructed tables\n\n';for(const t of tables){md+=`#### Table ${t.reading_order}\n\n`;if(t.image)md+=`![Page ${n} table ${t.reading_order}](${t.image})\n\n`;md+=`> Heuristic reconstruction from PDF text coordinates. Check the table image above when exact layout matters.\n\n${t.markdown}\n`;}}
-      md+=`<!-- text_source: ${textSource} -->\n\n### Extracted text\n\n${text?text:'_[No selectable text detected on this page. Use the page image above.]_'}\n\n<!-- PAGE ${n} END -->\n\n---\n\n`;
-      manifest.pages.push({page:n,image:`pages/${pageName}`,text_detected:Boolean(text),text_source:textSource,text_chars:text.length,korean_chars:koreanChars,width_px:canvas.width,height_px:canvas.height,visuals,tables:tables.map(t=>({...t,markdown:undefined}))});page.cleanup();await new Promise(r=>setTimeout(r,0));
+      md+=`<!-- text_source: ${textSource} -->\n\n### Extracted text\n\n${text?colorText:'_[No selectable text detected on this page. Use the page image above.]_'}\n\n<!-- PAGE ${n} END -->\n\n---\n\n`;
+      manifest.pages.push({page:n,image:`pages/${pageName}`,text_detected:Boolean(text),text_source:textSource,text_chars:text.length,korean_chars:koreanChars,color_rendered:colorValid,color_counts:colorCounts,colored_chars:coloredOnPage,width_px:canvas.width,height_px:canvas.height,visuals,tables:tables.map(t=>({...t,markdown:undefined}))});page.cleanup();await new Promise(r=>setTimeout(r,0));
     }
+    if(colorUnsafePages.length)warnings.push('문자 배열과 원본 텍스트가 일치하지 않아 일부 페이지에서 원본 글자색 표시를 생략했습니다: '+colorUnsafePages.join(', ')+'p. (텍스트와 페이지 이미지는 유지됩니다.)');
+    manifest.text_color_summary={pages_with_colors:colorPages,colored_characters:coloredChars};
     if(warnings.length){
       md+='## 변환 경고\n\n'+warnings.map(w=>'- '+w).join('\n')+'\n\n';
       manifest.warnings=warnings;
@@ -193,7 +210,7 @@ async function convert(){
     zip.file('AI_READY.md',md);zip.file('manifest.json',JSON.stringify(manifest,null,2));if($('includePdf').checked)zip.file(selectedFile.name,selectedFile);
     progress.style.width='90%';statusText.textContent='ZIP을 만드는 중…';resultBlob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}},m=>progress.style.width=`${Math.min(100,90+m.percent*.1).toFixed(1)}%`);
     if(resultUrl)URL.revokeObjectURL(resultUrl);resultUrl=URL.createObjectURL(resultBlob);downloadBtn.disabled=false;progress.style.width='100%';
-    const extras=[];if(features.visuals)extras.push(`visual ${totalVisuals}개`);if(features.tables)extras.push(`table ${totalTables}개`);statusText.textContent=`완료 · ${pdf.numPages}페이지 · 한글 포함 ${koPages}p · MuPDF 추출 ${muPages}p${extras.length?' · '+extras.join(' · '):''} · ZIP ${bytes(resultBlob.size)}${warnings.length?' · ⚠ '+warnings.length+'건 경고 (MD 끝부분 확인)':''}`;
+    const extras=[];if(features.visuals)extras.push(`visual ${totalVisuals}개`);if(features.tables)extras.push(`table ${totalTables}개`);statusText.textContent=`완료 · ${pdf.numPages}페이지 · 한글 포함 ${koPages}p · MuPDF 추출 ${muPages}p${features.colors?' · 글자색 ${colorPages}p ('+coloredChars+'자)':''}${extras.length?' · '+extras.join(' · '):''} · ZIP ${bytes(resultBlob.size)}${warnings.length?' · ⚠ '+warnings.length+'건 경고 (MD 끝부분 확인)':''}`;
     if(previewUrl)thumb.src=previewUrl;mdPreview.textContent=md.slice(0,10000)+(md.length>10000?'\n\n…':'');summary.textContent=`${pdf.numPages} pages${totalVisuals?` · ${totalVisuals} visuals`:''}${totalTables?` · ${totalTables} tables`:''} · ${bytes(resultBlob.size)}`;preview.classList.add('show');
   }catch(e){console.error(e);statusText.textContent=`변환 실패: ${e?.message||e}`;alert(`변환 중 오류가 발생했습니다.\n${e?.message||e}`)}finally{try{textReader?.close()}catch(e){console.warn('MuPDF cleanup failed',e)}convertBtn.disabled=false}
 }
