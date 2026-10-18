@@ -3,6 +3,8 @@
  * MuPDF.js: AGPL-3.0-or-later (https://mupdf.com/licensing/).
  * Processing stays on the user's device; PDFs are not uploaded.
  */
+import {renderColoredWalk} from './color_text.js';
+
 const MUPDF_DIST = 'https://cdn.jsdelivr.net/npm/mupdf@1.28.1/dist/';
 let modulePromise;
 
@@ -36,6 +38,19 @@ export async function openTextReader(pdfBytes, expectedPages) {
       try {
         structured = page.toStructuredText(preserveWhitespace ? 'preserve-whitespace' : '');
         return structured.asText();
+      } finally {
+        structured?.destroy();
+        page.destroy();
+      }
+    },
+    readPageRich(pageNumber, preserveWhitespace = true) {
+      const page = document.loadPage(pageNumber - 1);
+      let structured;
+      try {
+        const options = preserveWhitespace ? 'preserve-whitespace,preserve-spans' : 'preserve-spans';
+        structured = page.toStructuredText(options);
+        const plain = structured.asText();
+        return { plain, ...renderColoredWalk(structured, plain) };
       } finally {
         structured?.destroy();
         page.destroy();
