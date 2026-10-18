@@ -47,6 +47,7 @@
         </select>
       </label>
       <label class="control check"><input id="layoutText" type="checkbox" checked> 텍스트 읽기 순서 보정</label>
+      <label class="control check"><input id="keepTextColors" type="checkbox" checked> <b>주석 글자색 보존</b> (원본 빨강·파랑·초록 등)</label>
       <label class="control check"><input id="includePdf" type="checkbox"> ZIP에 원본 PDF 포함</label>
     </div>
 
@@ -83,7 +84,7 @@
     </div>
 
     <div class="hint" id="modeHint"><b>현재:</b> MuPDF 한글 텍스트 추출 + 페이지 JPEG 85%</div>
-    <div class="hint">이미지 OCR 없이 PDF에 저장된 선택 가능한 한글 주석까지 읽습니다. 첫 변환 시 MuPDF 엔진을 다운로드하며, 로딩 실패 시 PDF.js로 대체하고 경고를 표시합니다.</div>
+    <div class="hint">이미지 OCR 없이 선택 가능한 한글 주석과 <b>텍스트의 원본 색상</b>을 추출합니다. Markdown에서는 <code>&lt;span style="color:#006fff"&gt;</code> 형식으로 표시하며 색상명·HEX도 기록합니다. 색상 표시는 MuPDF 엔진에서만 지원하며, 색상 없는 주석이나 도형·형광펜은 페이지 이미지에서 확인할 수 있습니다.</div>
 
     <div class="actions">
       <button id="convert" disabled>변환하기</button>
@@ -101,6 +102,6 @@
   <p class="foot">기본 출력: <code>AI_READY.md</code> · <code>manifest.json</code> · <code>pages/*.jpg</code><br>선택 기능에 따라 <code>figures/*.png</code> · <code>tables/*.png</code>가 추가됩니다.</p>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script type="module" src="app.js?v=20261018-ko-text"></script>
+<script type="module" src="app.js?v=20261018-color-v1"></script>
 </body>
 </html>
