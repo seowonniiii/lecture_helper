@@ -24,6 +24,12 @@
 
     <h2>기본 설정</h2>
     <div class="controls">
+      <label class="control">텍스트 추출 엔진
+        <select id="textEngine">
+          <option value="mupdf" selected>MuPDF · 한글 주석 포함 (권장)</option>
+          <option value="pdfjs">PDF.js · 기존 방식</option>
+        </select>
+      </label>
       <label class="control">페이지 이미지 해상도
         <select id="scale">
           <option value="1.25">1.25× · 최소 용량</option>
@@ -76,7 +82,8 @@
       </div>
     </div>
 
-    <div class="hint" id="modeHint"><b>현재:</b> 기본 변환 · 페이지 JPEG 85% + 페이지별 텍스트</div>
+    <div class="hint" id="modeHint"><b>현재:</b> MuPDF 한글 텍스트 추출 + 페이지 JPEG 85%</div>
+    <div class="hint">이미지 OCR 없이 PDF에 저장된 선택 가능한 한글 주석까지 읽습니다. 첫 변환 시 MuPDF 엔진을 다운로드하며, 로딩 실패 시 PDF.js로 대체하고 경고를 표시합니다.</div>
 
     <div class="actions">
       <button id="convert" disabled>변환하기</button>
@@ -90,6 +97,7 @@
     <div class="previewGrid"><img id="thumb" alt="첫 페이지 미리보기"><pre id="mdPreview"></pre></div>
   </section>
 
+  <p class="foot">텍스트 추출 엔진: <a href="https://mupdf.com/" target="_blank" rel="noopener noreferrer">MuPDF.js</a> (AGPL-3.0-or-later). 브라우저 내부에서 처리되며 PDF는 서버로 업로드되지 않습니다.</p>
   <p class="foot">기본 출력: <code>AI_READY.md</code> · <code>manifest.json</code> · <code>pages/*.jpg</code><br>선택 기능에 따라 <code>figures/*.png</code> · <code>tables/*.png</code>가 추가됩니다.</p>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
