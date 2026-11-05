@@ -1,0 +1,28 @@
+name: Lecture Cloud Studio checks
+
+on:
+  push:
+    paths:
+      - "lecture-cloud-studio/**"
+      - ".github/workflows/lecture-cloud-studio-check.yml"
+  pull_request:
+    paths:
+      - "lecture-cloud-studio/**"
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python compile syntax
+        run: python -m py_compile lecture-cloud-studio/app.py
+      - name: Deployment script shell syntax
+        run: bash -n lecture-cloud-studio/deploy.sh
+      - name: Required files
+        run: |
+          test -s lecture-cloud-studio/Dockerfile
+          test -s lecture-cloud-studio/requirements.txt
+          test -s lecture-cloud-studio/static/index.html
