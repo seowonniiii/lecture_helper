@@ -153,10 +153,24 @@ function runJob(id,mode="all"){
     flash("AI 오류: "+d.message);
     await refreshJobs()
   });
-  runStream.onerror=()=>{
-    logProgress("진행 상황 연결이 끊겼습니다. 강의 목록에서 확인하고 AI 복구를 다시 실행할 수 있습니다.");
-    runStream.close();runStream=null;
+  runStream.onerror=async()=>{
+    if(runStream){runStream.close();runStream=null;}
     if(button)button.disabled=false;
+    try{
+      const state=await api("/api/jobs/"+id);
+      if(state.meta.stage==="failed"){
+        const message=state.meta.error||"서버 작업 실패 (상세 원인 없음)";
+        logProgress("서버 오류: "+message);
+        $("progressTitle").textContent="교정 실패 · 서버 오류 확인";
+        flash(message);
+      }else if(state.meta.stage==="complete"||state.meta.stage==="complete_with_warnings"){
+        logProgress("서버 처리 완료 · 결과를 다시 불러옵니다.");
+        await openJob(id);
+      }else{
+        logProgress("서버 연결이 종료됐습니다. 현재 상태: "+state.meta.stage+". 자동 재시작하지 않습니다. Cloud Run 요청 시간 제한 또는 서버 재시작일 수 있습니다.");
+        $("progressTitle").textContent="연결 종료 · 서버 상태 확인 필요";
+      }
+    }catch(e){logProgress("연결 종료 후 상태 확인 실패: "+e.message);}
   }
 }
 async function openJob(id){currentId=id;$("uploadView").classList.add("hidden");$("workView").classList.remove("hidden");try{let data=await api("/api/jobs/"+id);currentData=data;$("workTitle").textContent=data.meta.title;$("workMeta").textContent=(data.meta.created||"").slice(0,10)+" · "+data.meta.stage;if(data.result){$("workProgress").classList.add("hidden");$("workEmpty").classList.add("hidden");$("resultArea").classList.remove("hidden");currentPage=1;renderResult()}else{$("resultArea").classList.add("hidden");$("workEmpty").classList.remove("hidden");if(data.meta.stage==="ready"||data.meta.stage==="failed"){$("workEmpty").innerHTML='<p>처리가 끝나지 않았어요.</p><button class="btn primary" onclick="runJob(currentId)">처리 / 재시도</button>'}else $("workEmpty").textContent="이 강의에는 아직 결과가 없습니다."}await refreshJobs()}catch(e){flash(e.message)}}
