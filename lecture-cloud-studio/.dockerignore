@@ -7,7 +7,6 @@ __pycache__
 *.m4a
 *.wav
 *.pdf
-*.txt
 .env
 .env.*
 node_modules
