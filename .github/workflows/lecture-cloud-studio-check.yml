@@ -19,6 +19,8 @@ jobs:
           python-version: "3.12"
       - name: Python compile syntax
         run: python -m py_compile lecture-cloud-studio/app.py
+      - name: Gemini client lifetime regression
+        run: python -m unittest discover -s lecture-cloud-studio/tests -v
       - name: Deployment script shell syntax
         run: bash -n lecture-cloud-studio/deploy.sh
       - name: Required files
