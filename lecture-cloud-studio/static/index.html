@@ -42,9 +42,10 @@ footer{font-size:11px;color:var(--muted);margin-top:28px;line-height:1.65}
 <aside><div class="side-head"><strong style="font-size:13px">내 강의</strong><span id="lectureCount" class="small"></span></div><div id="lectureList"></div></aside>
 <main>
 <section id="uploadView">
- <div class="intro"><h1>강의 파일만 넣으면, 공부 자료까지.</h1><p>Chirp 3 클라우드 전사 또는 아이폰·아이패드 Whisper 전사문 → Gemini 의학용어 교정 → 원문 검증 → PDF 페이지 매칭 → 과외 노트·연습문제</p></div>
+ <div class="intro"><h1>강의 파일만 넣으면, 공부 자료까지.</h1><p>Cloudflare Whisper Large V3 Turbo 또는 Chirp 3 음성인식 → Gemini 의학용어 교정 → PDF 페이지 매칭 → 과외 노트·연습문제</p></div>
  <div class="card">
  <div class="row between"><strong>새 강의 만들기</strong><span class="tag">원본은 항상 보존</span></div>
+ <div style="margin:12px 0 18px"><label for="speechEngine" style="display:block;font-weight:700;margin-bottom:6px">음성인식 모델</label><select id="speechEngine" class="input" style="width:100%;max-width:440px"><option value="cloudflare_whisper" selected>Cloudflare Whisper Large V3 Turbo · 추천</option><option value="chirp_3">Google Cloud Chirp 3 · 기존 모델</option></select><p id="speechEngineHelp" class="small" style="margin-top:7px">Whisper는 서버에서 실행되므로 아이패드 기종과 관계없이 이용할 수 있어요.</p></div>
  <div class="upload-grid">
   <label class="filebox"><span class="ic">🎙️</span><strong>녹음 파일</strong><span id="labelAudio" class="filehint">M4A / MP3 / WAV / FLAC</span><input id="audioInput" type="file" accept=".m4a,.mp3,.wav,.flac,.aac,.ogg,.mp4,audio/*"></label>
   <label class="filebox"><span class="ic">📄</span><strong>강의록 PDF</strong><span id="labelPdf" class="filehint">페이지 자동 연결</span><input id="pdfInput" type="file" accept=".pdf,application/pdf"></label>
@@ -100,10 +101,23 @@ async function bootstrap(){try{let me=await api("/api/me");$("login").classList.
 $("loginBtn").onclick=async()=>{try{await api("/api/login",{method:"POST",body:{password:$("password").value}});$("loginError").textContent="";await bootstrap()}catch(e){$("loginError").textContent=e.message}};
 $("password").addEventListener("keydown",e=>{if(e.key==="Enter")$("loginBtn").click()});
 for(const [id,label] of [["audioInput","labelAudio"],["pdfInput","labelPdf"],["txtInput","labelTxt"],["transcriptInput","labelTranscript"],["questionsInput","labelQuestions"]])$(id).addEventListener("change",()=>{$(label).textContent=$(id).files?.[0]?.name||"파일을 선택해 주세요"});
-function showUpload(){currentId=null;currentData=null;$("uploadView").classList.remove("hidden");$("workView").classList.add("hidden");document.querySelectorAll(".project").forEach(x=>x.classList.remove("active"))}
+function showUpload(){currentId=null;currentData=null;$("uploadView").classList.remove("hidden");$("workView").classList.add("hidden");showSpeechAvailability();document.querySelectorAll(".project").forEach(x=>x.classList.remove("active"))}
+async function showSpeechAvailability(){
+  try{
+    const info=await api("/api/me");
+    const help=$("speechEngineHelp");
+    if(info.cloudflare_ready){
+      help.textContent="✓ Cloudflare Whisper 사용 준비 완료 · PDF 의학용어 힌트 지원";
+      help.style.color="#18896d";
+    }else{
+      help.textContent="Cloudflare 연결 전입니다. 계정 ID와 비밀 토큰을 서버에 한 번 설정하면 Whisper를 사용할 수 있어요. (Google Chirp 3는 지금도 선택 가능)";
+      help.style.color="#ad671b";
+    }
+  }catch(e){/* Login might not have completed yet. */}
+}
 async function refreshJobs(){try{jobList=await api("/api/jobs");$("lectureCount").textContent=jobList.length+"개";$("lectureList").innerHTML=jobList.map(j=>'<div class="project '+(j.id===currentId?"active":"")+'" onclick="openJob(\''+safe(j.id)+'\')"><strong>'+safe(j.title)+'</strong><span>'+safe(j.stage)+" · "+safe((j.created||"").slice(0,10))+'</span></div>').join("")||'<div class="small">아직 강의가 없어요.</div>'}catch(e){flash(e.message)}}
 function uploadGCS(session,file,label){return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open("PUT",session.upload_url);xhr.setRequestHeader("Content-Type",session.content_type);xhr.setRequestHeader("Content-Range","bytes 0-"+(file.size-1)+"/"+file.size);xhr.upload.onprogress=e=>{if(e.lengthComputable){$("progressTitle").textContent=label+" 업로드 "+Math.round(e.loaded/e.total*100)+"%"}};xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(Error("스토리지 업로드 오류 ("+xhr.status+"). CORS 설정을 확인하세요."));xhr.onerror=()=>reject(Error("스토리지 연결에 실패했습니다. 버킷 CORS와 인터넷 연결을 확인하세요."));xhr.send(file)})}
-async function startUpload(){const audio=$("audioInput").files[0],pdf=$("pdfInput").files[0],txt=$("txtInput").files[0],transcript=$("transcriptInput").files[0],questions=$("questionsInput").files[0];if(!audio&&!txt&&!transcript){flash("녹음, 클로바 TXT 또는 로컬 Whisper 전사문을 넣어주세요.");return}const btn=$("startBtn");btn.disabled=true;try{let title=$("lectureTitle").value.trim()||audio?.name||transcript?.name||txt?.name||"새 강의";let job=await api("/api/jobs",{method:"POST",body:{title}});currentId=job.id;$("uploadView").classList.add("hidden");$("workView").classList.remove("hidden");$("workTitle").textContent=title;$("workMeta").textContent="업로드 중";$("resultArea").classList.add("hidden");$("workProgress").classList.remove("hidden");$("progressLogs").textContent="";const files={};for(const [kind,file] of [["audio",audio],["pdf",pdf],["txt",txt],["transcript",transcript],["questions",questions]]){if(!file)continue;logProgress(kind.toUpperCase()+" 파일 준비");let session=await api("/api/jobs/"+job.id+"/upload-session",{method:"POST",body:{kind,filename:file.name,content_type:file.type||"application/octet-stream",size:file.size}});await uploadGCS(session,file,kind.toUpperCase());files[kind]=session.object;logProgress(kind.toUpperCase()+" 업로드 완료")}await api("/api/jobs/"+job.id+"/ready",{method:"POST",body:{files}});await refreshJobs();runJob(job.id)}catch(e){flash(e.message);logProgress("오류: "+e.message)}finally{btn.disabled=false}}
+async function startUpload(){const audio=$("audioInput").files[0],pdf=$("pdfInput").files[0],txt=$("txtInput").files[0],transcript=$("transcriptInput").files[0],questions=$("questionsInput").files[0];if(!audio&&!txt&&!transcript){flash("녹음, 클로바 TXT 또는 로컬 Whisper 전사문을 넣어주세요.");return}const btn=$("startBtn");btn.disabled=true;try{let title=$("lectureTitle").value.trim()||audio?.name||transcript?.name||txt?.name||"새 강의";let speech_engine=$("speechEngine").value;let job=await api("/api/jobs",{method:"POST",body:{title,speech_engine}});currentId=job.id;$("uploadView").classList.add("hidden");$("workView").classList.remove("hidden");$("workTitle").textContent=title;$("workMeta").textContent="업로드 중";$("resultArea").classList.add("hidden");$("workProgress").classList.remove("hidden");$("progressLogs").textContent="";const files={};for(const [kind,file] of [["audio",audio],["pdf",pdf],["txt",txt],["transcript",transcript],["questions",questions]]){if(!file)continue;logProgress(kind.toUpperCase()+" 파일 준비");let session=await api("/api/jobs/"+job.id+"/upload-session",{method:"POST",body:{kind,filename:file.name,content_type:file.type||"application/octet-stream",size:file.size}});await uploadGCS(session,file,kind.toUpperCase());files[kind]=session.object;logProgress(kind.toUpperCase()+" 업로드 완료")}await api("/api/jobs/"+job.id+"/ready",{method:"POST",body:{files}});await refreshJobs();runJob(job.id)}catch(e){flash(e.message);logProgress("오류: "+e.message)}finally{btn.disabled=false}}
 function logProgress(s){let el=$("progressLogs");el.textContent+="• "+s+"\n";el.scrollTop=el.scrollHeight}
 function repairAI(){
   if(!currentId)return;
