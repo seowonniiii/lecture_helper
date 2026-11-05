@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import difflib
 import hmac
+import hashlib
 import json
 import os
 import queue
@@ -373,7 +374,7 @@ def compare_correction(raw: str, corrected: str) -> list[str]:
     return warnings
 
 
-def correct_blocks(blocks: list[dict], pages: list[dict], emit):
+def correct_blocks(blocks: list[dict], pages: list[dict], emit, job_id: str):
     if not blocks:
         return blocks
     outline = "\n".join(
@@ -402,17 +403,31 @@ def correct_blocks(blocks: list[dict], pages: list[dict], emit):
         )
         error = None
         items = None
-        for attempt in range(2):
+        cache_name = job_path(job_id, f"cache/correction_{base:05d}.json")
+        cache_blob = object_blob(cache_name)
+        signature = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        # A completed Gemini batch is safely reused when a long lecture
+        # is retried after quota limits or a disconnected browser.
+        if cache_blob.exists():
             try:
-                response = gemini_json(prompt)
-                candidates = response.get("items", [])
-                found = {c.get("id"): c for c in candidates if isinstance(c, dict)}
-                if any(b["id"] not in found for b in batch):
-                    raise ValueError("일부 원문 ID 누락")
-                items = found
-                break
-            except Exception as exc:
-                error = str(exc)
+                cached = json.loads(cache_blob.download_as_text(encoding="utf-8"))
+                if cached.get("signature") == signature:
+                    items = cached.get("items")
+            except Exception:
+                items = None
+        if items is None:
+            for attempt in range(2):
+                try:
+                    response = gemini_json(prompt)
+                    candidates = response.get("items", [])
+                    found = {c.get("id"): c for c in candidates if isinstance(c, dict)}
+                    if any(b["id"] not in found for b in batch):
+                        raise ValueError("일부 원문 ID 누락")
+                    items = found
+                    save_json(cache_name, {"signature": signature, "items": items})
+                    break
+                except Exception as exc:
+                    error = str(exc)
         if items is None and error and ("429" in error or "Vertex AI Gemini" in error):
             raise RuntimeError("Gemini 교정 429: " + error[:400])
         for block in batch:
@@ -562,7 +577,7 @@ def pipeline(job_id: str, emit):
                         for b in blocks]
         # Never overwrite the original, even after manual corrections.
         save_json(job_path(job_id, "raw_blocks.json"), {"blocks": raw_snapshot})
-        correct_blocks(blocks, pdf_pages, emit)
+        correct_blocks(blocks, pdf_pages, emit, job_id)
         source_ids = [x["id"] for x in raw_snapshot]
         out_ids = [x["id"] for x in blocks]
         flags = []
