@@ -26,6 +26,8 @@ from pathlib import Path
 
 import fitz
 from transcript_import import parse_local_transcript
+from correction_engine import (glossary_from_pdf, correction_prompt,
+                               shortlist_pages, alignment_prompt, correction_warning)
 from cloudflare_stt import (configured as cloudflare_configured,
                             build_medical_prompt, transcribe_cloudflare_chunk)
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -392,87 +394,129 @@ def compare_correction(raw: str, corrected: str) -> list[str]:
     return warnings
 
 
+def _cached_gemini_items(prompt: str, cache_file: str,
+                         ids: list[str]) -> dict[str, dict]:
+    """Replay successful batches on retries and fail closed for invalid JSON."""
+    blob = object_blob(cache_file)
+    signature = hashlib.sha256((GEMINI_MODEL + "\n" + prompt).encode("utf-8")).hexdigest()
+    if blob.exists():
+        try:
+            existing = json.loads(blob.download_as_text(encoding="utf-8"))
+            if existing.get("signature") == signature:
+                found = existing.get("items", {})
+                if isinstance(found, dict) and all(i in found for i in ids):
+                    return found
+        except Exception:
+            pass
+    response = gemini_json(prompt)
+    data = response.get("items")
+    if not isinstance(data, list):
+        raise RuntimeError("Gemini JSON에서 items 목록이 누락됐습니다.")
+    found = {item["id"]: item for item in data
+             if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    if set(found) != set(ids) or len(data) != len(ids):
+        raise RuntimeError(
+            f"Gemini 문단 ID 불일치: 요청 {ids}, 응답 {list(found)}"
+        )
+    save_json(cache_file, {"signature": signature, "items": found})
+    return found
+
+
 def correct_blocks(blocks: list[dict], pages: list[dict], emit, job_id: str):
+    """Two distinct AI passes: medically grounded wording, then PDF pages.
+
+    Keeps raw ASR untouched. Caches each pass so PDF alignment retries do
+    not force another expensive correction or another STT request.
+    """
     if not blocks:
         return blocks
-    outline = "\n".join(
-        f"p{p['page']}: {(p['text'] or '[그림/텍스트 없음]')[:190]}"
-        for p in pages
+    batch_size = 10
+    glossary = glossary_from_pdf(pages)
+    emit(
+        f"1단계: 의학용어 전문 교정 시작 · PDF 용어집 "
+        f"{len(glossary)}자 · 페이지 매칭과 분리"
     )
-    if len(outline) > 26000:
-        outline = outline[:26000]
-    prior = 1
-    for base in range(0, len(blocks), 6):
-        batch = blocks[base:base+6]
-        payload = json.dumps([{"id": b["id"], "raw": b["raw"]} for b in batch],
-                             ensure_ascii=False)
-        prompt = (
-            "당신은 의과대학 강의 전사 교정기다. JSON 객체 {\"items\": [...]}만 반환한다.\n"
-            "중요: 원문을 요약, 재서술, 축약, 확장하지 않는다. 발언의 사례, 수치, "
-            "질문, 반복 강조를 모두 보존한다. 명백한 오인식 및 의학용어만 수정한다. "
-            "원문에서 들리지 않은 사실을 추가하지 않는다.\n"
-            "각 입력 ID에 대해 반드시 한 항목을 반환하며 순서를 유지한다.\n"
-            "각 항목: {\"id\":\"T0001\",\"corrected\":\"교정문\","
-            "\"page\":1 또는 null,\"confidence\":0.0~1.0,\"reason\":\"매칭 근거\"}.\n"
-            "페이지는 아래 원본 PDF 페이지 목차와 실제 발언을 대조한다. "
-            "불확실하거나 그림에만 내용이 있는 경우 null을 반환한다. "
-            f"직전 페이지 참고값: {prior}. 교수는 페이지를 되돌아갈 수 있다.\n\n"
-            "PDF 페이지 색인:\n"+outline+"\n\n원문 블록:\n"+payload
+    correction_terms = 0
+    for base in range(0, len(blocks), batch_size):
+        batch = blocks[base:base + batch_size]
+        ids = [b["id"] for b in batch]
+        prior = " ".join(b["raw"] for b in blocks[max(base - 3, 0):base])
+        following = " ".join(
+            b["raw"] for b in blocks[base + len(batch):base + len(batch) + 3]
         )
-        error = None
-        items = None
-        cache_name = job_path(job_id, f"cache/correction_{base:05d}.json")
-        cache_blob = object_blob(cache_name)
-        signature = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
-        # A completed Gemini batch is safely reused when a long lecture
-        # is retried after quota limits or a disconnected browser.
-        if cache_blob.exists():
-            try:
-                cached = json.loads(cache_blob.download_as_text(encoding="utf-8"))
-                if cached.get("signature") == signature:
-                    items = cached.get("items")
-            except Exception:
-                items = None
-        if items is None:
-            for attempt in range(2):
-                try:
-                    response = gemini_json(prompt)
-                    candidates = response.get("items", [])
-                    found = {c.get("id"): c for c in candidates if isinstance(c, dict)}
-                    if any(b["id"] not in found for b in batch):
-                        raise ValueError("일부 원문 ID 누락")
-                    items = found
-                    save_json(cache_name, {"signature": signature, "items": items})
-                    break
-                except Exception as exc:
-                    error = str(exc)
-        if items is None:
-            # Hard failure: do not publish untouched transcript as "completed".
-            raise RuntimeError("Gemini 교정·페이지 매칭 실패: " + str(error)[:650])
+        payload = json.dumps(
+            [{"id": b["id"], "raw": b["raw"]} for b in batch],
+            ensure_ascii=False,
+        )
+        prompt = correction_prompt(batch, glossary, prior, following, payload)
+        items = _cached_gemini_items(
+            prompt, job_path(job_id, f"cache/medical_correction_v2_{base:05d}.json"),
+            ids
+        )
         for block in batch:
             item = items[block["id"]]
-            value = item.get("corrected")
-            if not isinstance(value, str) or not value.strip():
-                raise RuntimeError(f"{block['id']}의 AI 교정문이 비어 있습니다. 불완전한 결과는 저장하지 않습니다.")
-            block["corrected"] = value
-            proposed = item.get("page")
+            text = item.get("corrected")
+            if not isinstance(text, str) or not text.strip():
+                raise RuntimeError(f"{block['id']}: Gemini가 교정문을 반환하지 않았습니다.")
+            warning = correction_warning(block["raw"], text)
+            if warning:
+                block["flags"].append(warning + " · 원본 보존, 자동 수정 보류")
+                text = block["raw"]
+            block["corrected"] = text
+            changes = item.get("terms") or []
+            verified_changes = []
+            if text != block["raw"] and isinstance(changes, list):
+                for change in changes:
+                    if not isinstance(change, dict):
+                        continue
+                    before = str(change.get("from", "")).strip()
+                    after = str(change.get("to", "")).strip()
+                    if before and after and before in block["raw"] and after in text:
+                        verified_changes.append({
+                            "from": before, "to": after,
+                            "basis": str(change.get("basis", ""))[:90],
+                        })
+            block["term_changes"] = verified_changes
+            correction_terms += len(verified_changes)
+        emit(f"의학용어·구어체 교정: {min(base + len(batch), len(blocks))}/{len(blocks)}")
+    emit(f"의학용어 교정 1차 완료: 용어 변경 후보 {correction_terms}건")
+    if not pages:
+        emit("PDF가 없으므로 페이지 매칭은 건너뜁니다.")
+        return blocks
+    emit("2단계: 교정된 전사문을 실제 PDF 페이지와 별도 매칭")
+    previous_page = 1
+    for base in range(0, len(blocks), batch_size):
+        batch = blocks[base:base + batch_size]
+        ids = [b["id"] for b in batch]
+        keywords = " ".join(b["corrected"] for b in batch)
+        candidates = shortlist_pages(keywords, pages, previous_page)
+        possible_pages = {p["page"] for p in candidates}
+        prompt = alignment_prompt(batch, candidates, previous_page)
+        matched = _cached_gemini_items(
+            prompt, job_path(job_id, f"cache/medical_alignment_v2_{base:05d}.json"),
+            ids
+        )
+        for block in batch:
+            item = matched[block["id"]]
+            page = item.get("page")
             try:
-                proposed = int(proposed) if proposed is not None else None
-            except (TypeError, ValueError):
-                proposed = None
-            if proposed is not None and not (1 <= proposed <= len(pages)):
-                proposed = None
-            block["page"] = proposed
+                page = int(page) if page is not None else None
+            except (ValueError, TypeError):
+                page = None
+            if page not in possible_pages:
+                page = None
+            block["page"] = page
             try:
-                block["confidence"] = max(0, min(1, float(item.get("confidence") or 0)))
-            except (TypeError, ValueError):
-                block["confidence"] = 0
-            if block["confidence"] < 0.7 and proposed is not None:
-                block["flags"].append("PDF 페이지 수동 확인 권장")
-            if proposed is not None:
-                prior = proposed
-            block["flags"].extend(compare_correction(block["raw"], value))
-        emit(f"교정·페이지 매칭: {min(base+len(batch),len(blocks))}/{len(blocks)} 문단")
+                block["confidence"] = max(0., min(1., float(item.get("confidence") or 0)))
+            except (ValueError, TypeError):
+                block["confidence"] = 0.
+            block["page_reason"] = str(item.get("reason", ""))[:450]
+            if page is not None:
+                previous_page = page
+                if block["confidence"] < 0.75:
+                    block["flags"].append("PDF 페이지 근거 약함 · 수동 검토")
+        emit(f"PDF 페이지 매칭: {min(base + len(batch), len(blocks))}/{len(blocks)}")
+
 
 
 def build_study(blocks: list[dict], pages: list[dict], emit):
