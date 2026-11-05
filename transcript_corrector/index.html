@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>전사문 교정기</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+  :root{--ink:#111;--bg:#fff;--muted:#555;--yellow:#fff3a8;--blue:#d6ecff;--red:#ffd9d6;--line:3px solid var(--ink)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;line-height:1.5}
+  .wrap{max-width:920px;margin:0 auto;padding:24px 16px 80px}
+  h1{font-size:28px;margin:0 0 4px;font-weight:900;letter-spacing:-.5px}
+  .sub{color:var(--muted);margin:0 0 24px}
+  .box{border:var(--line);padding:16px;margin-bottom:16px}
+  .box h2{font-size:17px;margin:0 0 12px;font-weight:800}
+  .num{display:inline-block;background:var(--ink);color:#fff;width:24px;height:24px;text-align:center;line-height:24px;font-size:14px;margin-right:6px}
+  label{font-weight:700;font-size:14px;display:block;margin:10px 0 4px}
+  input[type=text],input[type=password],input[type=number],select,textarea{width:100%;border:2px solid var(--ink);padding:9px 10px;font:inherit;background:#fff;color:var(--ink);border-radius:0}
+  textarea{min-height:170px;resize:vertical;font-size:14px}
+  input[type=file]{font:inherit;font-size:14px;max-width:100%}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .row>*{flex:1 1 200px}
+  button{border:var(--line);background:#fff;color:var(--ink);font:inherit;font-weight:800;padding:10px 16px;cursor:pointer;border-radius:0}
+  button:hover{background:var(--yellow)}
+  button.primary{background:var(--ink);color:#fff;font-size:17px;width:100%;padding:14px}
+  button.primary:hover{background:#333}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .hint{font-size:13px;color:var(--muted);margin:4px 0 0}
+  .tag{display:inline-block;padding:2px 8px;font-size:13px;font-weight:700;border:2px solid var(--ink);margin-top:8px}
+  .tag.y{background:var(--yellow)} .tag.b{background:var(--blue)} .tag.r{background:var(--red)}
+  .mode{display:flex;gap:0;border:2px solid var(--ink);margin-top:6px}
+  .mode label{flex:1;margin:0;padding:10px;text-align:center;cursor:pointer;font-weight:700;border-right:2px solid var(--ink)}
+  .mode label:last-child{border-right:0}
+  .mode input{display:none}
+  .mode input:checked+span{background:var(--yellow);display:block;margin:-10px;padding:10px}
+  .check{display:flex;gap:8px;align-items:center;font-weight:600;font-size:14px;margin-top:10px}
+  .check input{width:18px;height:18px}
+  #log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;white-space:pre-wrap;background:#fafafa;border:2px solid var(--ink);padding:10px;max-height:220px;overflow:auto;margin-top:10px;display:none}
+  .bar{height:14px;border:2px solid var(--ink);margin-top:10px;display:none}
+  .bar>div{height:100%;width:0;background:var(--ink);transition:width .3s}
+  #out{min-height:360px}
+  details summary{cursor:pointer;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>전사문 교정기</h1>
+  <p class="sub">강의록 PDF + 전사문 → 페이지 구분 · 의학용어 교정 (Gemini)</p>
+
+  <div class="box">
+    <h2><span class="num">1</span>Gemini API 키</h2>
+    <div class="row">
+      <input type="password" id="key" placeholder="AIza로 시작하는 키 붙여넣기">
+      <button id="saveKey" style="flex:0 0 auto">저장 · 모델 불러오기</button>
+    </div>
+    <label for="model">모델</label>
+    <select id="model"><option value="">키를 저장하면 목록이 뜹니다</option></select>
+    <p class="hint">키는 이 컴퓨터 브라우저에만 저장됩니다. 기본은 Flash(빠르고 무료 한도 넉넉), 용어 오류가 많으면 Pro로 바꿔 보세요.</p>
+  </div>
+
+  <div class="box">
+    <h2><span class="num">2</span>강의록 PDF</h2>
+    <input type="file" id="slides" accept="application/pdf">
+    <p class="hint">페이지 구분 모드에서는 필수, 교정만 모드에서도 넣으면 용어 교정이 훨씬 정확해집니다.</p>
+  </div>
+
+  <div class="box">
+    <h2><span class="num">3</span>전사문</h2>
+    <input type="file" id="tfile" accept=".txt,.md,.docx,.pdf,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+    <p class="hint">.txt · .docx · .pdf를 올리거나 아래에 바로 붙여넣으세요.</p>
+    <textarea id="trans" placeholder="클로바노트 전사문 붙여넣기"></textarea>
+    <div id="detect"></div>
+  </div>
+
+  <div class="box">
+    <h2><span class="num">4</span>작업 방식</h2>
+    <div class="mode">
+      <label><input type="radio" name="mode" value="split" checked><span>페이지 구분 + 용어 교정</span></label>
+      <label><input type="radio" name="mode" value="fix"><span>이미 구분됨 → 용어 교정만</span></label>
+    </div>
+    <label class="check"><input type="checkbox" id="filler" checked>추임새(어, 음, 그…) 정리하기</label>
+    <details style="margin-top:12px">
+      <summary>고급 설정</summary>
+      <div class="row">
+        <div><label for="fmt">페이지 표시 형식 ({n} = 번호)</label><input type="text" id="fmt" value="{n}p"></div>
+        <div><label for="chunk">한 번에 보낼 글자 수</label><input type="number" id="chunk" value="14000" min="3000" step="1000"></div>
+      </div>
+      <p class="hint">결과가 중간에 잘리거나 요약된 느낌이면 글자 수를 8000 정도로 줄이세요.</p>
+    </details>
+  </div>
+
+  <button class="primary" id="run">실행</button>
+  <div class="row" style="margin-top:8px"><button id="stop" disabled>중단</button></div>
+  <div class="bar" id="bar"><div></div></div>
+  <div id="log"></div>
+
+  <div class="box" style="margin-top:16px">
+    <h2><span class="num">5</span>결과</h2>
+    <textarea id="out" placeholder="여기에 결과가 나옵니다. 직접 고쳐도 됩니다."></textarea>
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="fname" placeholder="파일 이름 (예: 간질환_1강)">
+      <button id="copy" style="flex:0 0 auto">복사</button>
+      <button id="dlmd" style="flex:0 0 auto">.md 저장</button>
+      <button id="dltxt" style="flex:0 0 auto">.txt 저장</button>
+    </div>
+    <p class="hint">(?) 표시는 Gemini가 확신하지 못한 용어입니다. 정리본 만들 때 확인하세요.</p>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const API = "https://generativelanguage.googleapis.com";
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+};
+
+let abortCtl = null;
+const log = msg => { const el=$("log"); el.style.display="block"; el.textContent += msg + "\n"; el.scrollTop = el.scrollHeight; };
+const setBar = p => { $("bar").style.display="block"; $("bar").firstElementChild.style.width = Math.round(p*100)+"%"; };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- 키 & 모델 ---------- */
+async function loadModels(){
+  const key = $("key").value.trim();
+  if(!key){ alert("API 키를 붙여넣어 주세요."); return; }
+  store.set("gem_key", key);
+  const sel = $("model");
+  sel.innerHTML = "<option>불러오는 중…</option>";
+  try{
+    const r = await fetch(`${API}/v1beta/models?pageSize=1000&key=${encodeURIComponent(key)}`);
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error?.message || r.status);
+    const bad = /embed|tts|image|live|audio|native|aqa|robotics|computer|learnlm|gemma/i;
+    let ms = (j.models||[]).filter(m => (m.supportedGenerationMethods||[]).includes("generateContent") && /gemini/i.test(m.name) && !bad.test(m.name));
+    const ver = m => parseFloat((m.name.match(/gemini-(\d+(?:\.\d+)?)/)||[,0])[1]);
+    const stable = m => /preview|exp/i.test(m.name) ? 0 : 1;
+    ms.sort((a,b) => ver(b)-ver(a) || stable(b)-stable(a) || a.name.localeCompare(b.name));
+    sel.innerHTML = ms.map(m => `<option value="${m.name}">${m.displayName || m.name} (${m.name.replace("models/","")})</option>`).join("");
+    const saved = store.get("gem_model");
+    const pick = (saved && ms.find(m=>m.name===saved)) || ms.find(m => /flash/i.test(m.name) && !/lite/i.test(m.name)) || ms[0];
+    if(pick) sel.value = pick.name;
+  }catch(e){
+    sel.innerHTML = `<option value="">불러오기 실패</option>`;
+    alert("모델 목록을 못 불러왔어요. 키가 맞는지 확인해 주세요.\n\n" + e.message);
+  }
+}
+$("saveKey").onclick = loadModels;
+$("model").onchange = () => store.set("gem_model", $("model").value);
+(function init(){ const k = store.get("gem_key"); if(k){ $("key").value = k; loadModels(); } })();
+
+/* ---------- 파일 읽기 ---------- */
+function readAsArrayBuffer(f){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsArrayBuffer(f); }); }
+function readAsText(f){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsText(f,"utf-8"); }); }
+
+async function pdfToText(buf){
+  const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+  let out = [];
+  for(let i=1;i<=pdf.numPages;i++){
+    const tc = await (await pdf.getPage(i)).getTextContent();
+    let line = "", lines = [], lastY = null;
+    for(const it of tc.items){
+      const y = it.transform ? it.transform[5] : null;
+      if(lastY!==null && y!==null && Math.abs(y-lastY)>2){ lines.push(line); line=""; }
+      line += it.str; lastY = y;
+      if(it.hasEOL){ lines.push(line); line=""; lastY=null; }
+    }
+    if(line) lines.push(line);
+    out.push(lines.join("\n"));
+  }
+  return out.join("\n");
+}
+
+$("tfile").onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  const n = f.name.toLowerCase();
+  try{
+    let text;
+    if(n.endsWith(".docx")){
+      if(!window.mammoth) throw new Error("docx 읽기 도구를 못 불러왔어요(인터넷 연결 확인).");
+      text = (await mammoth.extractRawText({arrayBuffer: await readAsArrayBuffer(f)})).value;
+    } else if(n.endsWith(".pdf")){
+      if(!window.pdfjsLib) throw new Error("PDF 읽기 도구를 못 불러왔어요(인터넷 연결 확인).");
+      text = await pdfToText(await readAsArrayBuffer(f));
+    } else {
+      text = await readAsText(f);
+    }
+    $("trans").value = text.replace(/\r\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim();
+    if(!$("fname").value) $("fname").value = f.name.replace(/\.[^.]+$/,"") + "_교정";
+    detect();
+  }catch(err){ alert("전사문 파일을 읽지 못했어요.\n" + err.message); }
+};
+
+/* ---------- 이미 구분된 전사문 감지 ---------- */
+const anyMarker = /^\s*(?:\[|<|#+\s*|-+\s*)?(?:(?:p\.?|page|페이지|슬라이드|slide)\s*\d+|\d+(?:\s*[~\-–]\s*\d+)?\s*(?:p\b|p\.|페이지|쪽))/gim;
+function detect(){
+  const t = $("trans").value;
+  const c = (t.match(anyMarker)||[]).length;
+  const box = $("detect");
+  if(c >= 3){
+    box.innerHTML = `<span class="tag b">페이지 표시 ${c}개 발견 → '용어 교정만'으로 바꿨어요</span>`;
+    document.querySelector('input[name=mode][value=fix]').checked = true;
+  } else if(t.trim()){
+    box.innerHTML = `<span class="tag y">페이지 구분 없는 전사문 · ${t.length.toLocaleString()}자</span>`;
+    document.querySelector('input[name=mode][value=split]').checked = true;
+  } else box.innerHTML = "";
+}
+let dt; $("trans").addEventListener("input", ()=>{ clearTimeout(dt); dt=setTimeout(detect, 500); });
+
+/* ---------- 나누기 ---------- */
+function splitChunks(text, size, mode){
+  const chunks = [];
+  if(mode === "fix"){
+    const lines = text.split("\n"); let cur = "";
+    for(const ln of lines){
+      anyMarker.lastIndex = 0;
+      const isMarker = anyMarker.test(ln);
+      if(isMarker && cur.length > size*0.6){ chunks.push(cur); cur = ""; }
+      cur += ln + "\n";
+      if(cur.length > size*1.4){ chunks.push(cur); cur = ""; }
+    }
+    if(cur.trim()) chunks.push(cur);
+    return chunks;
+  }
+  let rest = text;
+  while(rest.length > size){
+    let cut = -1;
+    for(const sep of ["\n\n","\n",". ","다. ","요. ","? "," "]){
+      const i = rest.lastIndexOf(sep, size);
+      if(i > size*0.6){ cut = i + sep.length; break; }
+    }
+    if(cut < 0) cut = size;
+    chunks.push(rest.slice(0,cut)); rest = rest.slice(cut);
+  }
+  if(rest.trim()) chunks.push(rest);
+  return chunks;
+}
+
+/* ---------- 페이지 표시 형식 ---------- */
+function markerRegex(fmt){
+  const esc = fmt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace("\\{n\\}", "(\\d+(?:\\s*[~\\-–]\\s*\\d+)?)");
+  return new RegExp("^\\s*" + esc + "\\s*$", "gm");
+}
+
+/* ---------- Gemini 호출 ---------- */
+async function uploadFile(key, file){
+  const meta = JSON.stringify({file:{display_name: file.name}});
+  const boundary = "b" + Math.random().toString(36).slice(2);
+  const head = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${file.type || "application/pdf"}\r\n\r\n`;
+  const body = new Blob([head, file, `\r\n--${boundary}--`]);
+  const r = await fetch(`${API}/upload/v1beta/files?uploadType=multipart&key=${encodeURIComponent(key)}`, {
+    method:"POST", headers:{"Content-Type":`multipart/related; boundary=${boundary}`}, body
+  });
+  const j = await r.json();
+  if(!r.ok) throw new Error(j.error?.message || ("업로드 실패 " + r.status));
+  let f = j.file;
+  for(let i=0; i<60 && f.state === "PROCESSING"; i++){
+    await sleep(2000);
+    f = await (await fetch(`${API}/v1beta/${f.name}?key=${encodeURIComponent(key)}`)).json();
+  }
+  if(f.state === "FAILED") throw new Error("PDF 처리 실패");
+  return {file_data:{mime_type: f.mimeType || "application/pdf", file_uri: f.uri}};
+}
+async function inlinePart(file){
+  const buf = new Uint8Array(await readAsArrayBuffer(file));
+  let bin = ""; for(let i=0;i<buf.length;i+=0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i,i+0x8000));
+  return {inline_data:{mime_type:"application/pdf", data: btoa(bin)}};
+}
+
+async function generate(key, model, system, parts){
+  const body = {
+    system_instruction:{parts:[{text: system}]},
+    contents:[{role:"user", parts}],
+    generationConfig:{temperature:0.2, maxOutputTokens:65536}
+  };
+  for(let attempt=1; attempt<=4; attempt++){
+    const r = await fetch(`${API}/v1beta/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+      method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body), signal: abortCtl.signal
+    });
+    const j = await r.json().catch(()=>({}));
+    if(r.ok){
+      const c = j.candidates?.[0];
+      if(!c) throw new Error("응답이 비었어요 (" + (j.promptFeedback?.blockReason || "이유 불명") + ")");
+      const text = (c.content?.parts||[]).filter(p=>!p.thought && p.text).map(p=>p.text).join("");
+      return {text, finish: c.finishReason};
+    }
+    if((r.status === 429 || r.status >= 500) && attempt < 4){
+      const wait = 20*attempt;
+      log(`  · 한도/서버 대기 (${r.status}) — ${wait}초 후 다시 시도`);
+      await sleep(wait*1000); continue;
+    }
+    throw new Error(j.error?.message || ("오류 " + r.status));
+  }
+}
+
+/* ---------- 프롬프트 ---------- */
+function systemPrompt(mode, fmt, filler){
+  const m = fmt.replace("{n}","N");
+  const common = `
+- 음성 인식 오류로 깨진 의학 용어·약물명·질환명·고유명사를 강의록(슬라이드) 표기 기준으로 고친다. 슬라이드에 영어로 적힌 용어는 영어로 쓴다 (예: 헤파토사이트 → hepatocyte, 에이치비이에이지 → HBeAg).
+- 강의록이 없거나 슬라이드에 없는 용어는 의학적으로 가장 그럴듯한 표기로 고친다. 확신이 없으면 추정한 표기 바로 뒤에 (?)를 붙인다.
+- 절대 요약·삭제·재구성하지 않는다. 교수가 한 말은 전부, 원래 순서대로 남긴다. 문장을 더 매끄럽게 다시 쓰지 않는다. 띄어쓰기와 명백한 오타만 바로잡는다.
+- 교수가 "시험에 낸다", "중요하다", "꼭 외워라"처럼 말한 부분도 그대로 둔다(표시를 추가하지 않는다).
+${filler ? "- 의미 없는 추임새(어, 음, 그, 이제, 뭐 등이 단독으로 반복되는 것)와 말 더듬어 반복된 단어는 정리한다. 의미 있는 말은 지우지 않는다." : "- 추임새도 그대로 남긴다."}
+- 결과 텍스트만 출력한다. 머리말, 설명, 요약, 코드블록(\`\`\`)을 쓰지 않는다.`;
+  if(mode === "split") return `너는 한국 의과대학 강의 전사문 편집자다. 강의록 PDF와 클로바노트 전사문 일부를 받는다.
+
+할 일:
+- 전사문을 강의록 슬라이드 페이지에 맞춰 나눈다. PDF의 페이지 번호(첫 장 = 1)를 기준으로, 각 페이지가 시작되는 곳에 "${m}" 형식의 줄을 단독으로 넣는다 (예: ${fmt.replace("{n}","3")}).
+- 교수가 앞 페이지로 돌아가 설명하면 그 페이지 표시를 다시 넣는다. 여러 장을 한꺼번에 설명하면 ${fmt.replace("{n}","8~9")} 처럼 쓴다.
+- 슬라이드와 관계없는 부분(수업 전 공지, 출석, 질의응답 등)은 "추가" 줄을 단독으로 넣고 그 아래에 둔다.
+- 페이지 표시 줄 아래에는 해당 내용을 자연스러운 문단으로 나눠 쓴다.${common}`;
+  return `너는 한국 의과대학 강의 전사문 편집자다. 이미 페이지가 구분된 전사문 일부를 받는다 (강의록 PDF가 함께 올 수 있다).
+
+할 일:
+- 페이지 구분은 원래 그대로 유지한다. 페이지를 새로 나누거나 옮기지 않는다. 다만 페이지 표시 줄은 "${m}" 형식으로 통일해 단독 줄로 쓴다 (예: "슬라이드 12." → ${fmt.replace("{n}","12")}, "8~9p." → ${fmt.replace("{n}","8~9")}). "추가 슬라이드" 같은 표시는 "추가"로 쓴다.${common}`;
+}
+
+/* ---------- 실행 ---------- */
+$("run").onclick = async () => {
+  const key = $("key").value.trim();
+  const model = $("model").value;
+  const text = $("trans").value.trim();
+  const slides = $("slides").files[0];
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  const fmt = $("fmt").value.includes("{n}") ? $("fmt").value : "{n}p";
+  const size = Math.max(3000, parseInt($("chunk").value)||14000);
+  if(!key) return alert("API 키를 넣어 주세요.");
+  if(!model) return alert("모델 목록을 먼저 불러와 주세요 (키 저장 버튼).");
+  if(!text) return alert("전사문을 넣어 주세요.");
+  if(mode === "split" && !slides) return alert("페이지 구분에는 강의록 PDF가 필요해요.");
+
+  $("log").textContent = ""; $("out").value = "";
+  $("run").disabled = true; $("stop").disabled = false;
+  abortCtl = new AbortController();
+  const t0 = Date.now();
+  try{
+    let slidePart = null;
+    if(slides){
+      if(slides.size > 15*1024*1024){ log("강의록 PDF 업로드 중 (용량이 커서 따로 올려요)…"); slidePart = await uploadFile(key, slides); }
+      else slidePart = await inlinePart(slides);
+      log(`강의록: ${slides.name} (${(slides.size/1048576).toFixed(1)}MB)`);
+    }
+    const chunks = splitChunks(text, size, mode);
+    log(`전사문 ${text.length.toLocaleString()}자 → ${chunks.length}조각으로 나눠 처리 · 모델 ${model.replace("models/","")}`);
+    const sys = systemPrompt(mode, fmt, $("filler").checked);
+    const mre = markerRegex(fmt);
+    let result = "", lastMarker = null, warn = [];
+    for(let i=0;i<chunks.length;i++){
+      setBar(i/chunks.length);
+      log(`[${i+1}/${chunks.length}] 처리 중…`);
+      let ctx = `전체 ${chunks.length}조각 중 ${i+1}번째 조각이다.`;
+      if(mode === "split"){
+        if(i === 0) ctx += " 강의 맨 처음부터 시작한다.";
+        else ctx += ` 직전 조각은 ${lastMarker ? `"${lastMarker}" 페이지에서` : "페이지 표시 없이"} 끝났다. 이 조각의 첫 줄에는 지금 설명 중인 페이지 표시를 반드시 넣는다(직전과 같은 페이지면 같은 표시). 직전 조각 끝부분(참고용, 다시 출력하지 말 것):\n"""${result.slice(-600)}"""`;
+      }
+      const parts = [];
+      if(slidePart) parts.push(slidePart);
+      parts.push({text: `${ctx}\n\n=== 전사문 조각 ===\n${chunks[i]}`});
+      const {text: out, finish} = await generate(key, model, sys, parts);
+      let piece = out.replace(/^```[a-z]*\n?/i,"").replace(/\n?```\s*$/,"").trim();
+      if(finish && finish !== "STOP"){ warn.push(i+1); log(`  ! ${i+1}번째 조각이 끝까지 출력되지 않았을 수 있어요 (${finish})`); }
+      const ratio = piece.length / chunks[i].length;
+      if(ratio < 0.6) { warn.push(i+1); log(`  ! ${i+1}번째 조각 결과가 원문의 ${Math.round(ratio*100)}%뿐이에요 — 요약됐을 수 있어요`); }
+      // 직전과 같은 페이지 표시로 시작하면 중복 제거
+      const firstLine = piece.split("\n")[0].trim();
+      if(lastMarker && firstLine === lastMarker) piece = piece.split("\n").slice(1).join("\n").trim();
+      result += (result ? "\n\n" : "") + piece;
+      const ms = [...result.matchAll(mre)];
+      if(ms.length) lastMarker = ms[ms.length-1][0].trim();
+      $("out").value = result;
+      log(`  ✓ 완료 (${piece.length.toLocaleString()}자)`);
+    }
+    setBar(1);
+    const sec = Math.round((Date.now()-t0)/1000);
+    const q = (result.match(/\(\?\)/g)||[]).length;
+    log(`\n끝! ${Math.floor(sec/60)}분 ${sec%60}초 · 확인 필요 용어 ${q}개` + (warn.length ? ` · 확인할 조각: ${[...new Set(warn)].join(", ")}번` : ""));
+  }catch(e){
+    if(e.name === "AbortError") log("중단했어요. 지금까지 결과는 아래에 있어요.");
+    else { log("오류: " + e.message); alert("오류가 났어요.\n" + e.message); }
+  }finally{
+    $("run").disabled = false; $("stop").disabled = true;
+  }
+};
+$("stop").onclick = () => abortCtl && abortCtl.abort();
+
+/* ---------- 저장 ---------- */
+function download(ext){
+  const t = $("out").value; if(!t) return alert("결과가 아직 없어요.");
+  const name = ($("fname").value.trim() || "전사문_교정") + "." + ext;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([t], {type:"text/plain;charset=utf-8"}));
+  a.download = name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+$("dlmd").onclick = () => download("md");
+$("dltxt").onclick = () => download("txt");
+$("copy").onclick = async () => {
+  try{ await navigator.clipboard.writeText($("out").value); $("copy").textContent="복사됨"; setTimeout(()=>$("copy").textContent="복사",1200); }
+  catch(e){ $("out").select(); document.execCommand("copy"); }
+};
+</script>
+</body>
+</html>
