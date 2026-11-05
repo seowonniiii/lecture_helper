@@ -629,8 +629,9 @@ def upload_session(job_id: str, request: Request, data: UploadRequest):
     mime = data.content_type or "application/octet-stream"
     # Cloud Run cannot take a 100MB upload in its normal HTTP request.
     # A resumable upload session lets the browser stream directly to private GCS.
+    browser_origin = request.headers.get("origin") or str(request.base_url).rstrip("/")
     url = blob.create_resumable_upload_session(
-        content_type=mime, size=data.size,
+        content_type=mime, size=data.size, origin=browser_origin,
     )
     return {"upload_url": url, "object": key, "size": data.size,
             "content_type": mime}
