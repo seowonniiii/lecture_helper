@@ -925,6 +925,36 @@ def pdf_file(job_id: str, request: Request, kind: str = "pdf"):
                     headers={"Cache-Control": "private, max-age=300"})
 
 
+@app.get("/api/jobs/{job_id}/page-image")
+def pdf_page_image(job_id: str, request: Request, page: int = 1):
+    """Render a PDF page into a real image for reliable iPad Safari paging.
+
+    The previous iframe + #page=fragment was ignored by native iOS PDF viewer.
+    Cache rendered images in the existing private GCS bucket.
+    """
+    auth_check(request)
+    meta = load_json(meta_path(job_id))
+    pdf_key = meta.get("files", {}).get("pdf")
+    if not pdf_key:
+        raise HTTPException(404, "업로드된 강의록 PDF가 없습니다.")
+    if page < 1 or page > 5000:
+        raise HTTPException(400, "PDF 페이지 번호가 올바르지 않습니다.")
+    cache_key = job_path(job_id, f"cache/pdf_render_140_{page:04d}.png")
+    blob = object_blob(cache_key)
+    if blob.exists():
+        image_bytes = blob.download_as_bytes()
+    else:
+        source_bytes = object_blob(pdf_key).download_as_bytes()
+        with fitz.open(stream=source_bytes, filetype="pdf") as doc:
+            if page > len(doc):
+                raise HTTPException(404, f"PDF는 총 {len(doc)}페이지입니다.")
+            pix = doc[page - 1].get_pixmap(matrix=fitz.Matrix(1.4, 1.4), alpha=False)
+            image_bytes = pix.tobytes("png")
+        blob.upload_from_string(image_bytes, content_type="image/png")
+    return Response(image_bytes, media_type="image/png",
+                    headers={"Cache-Control": "private, max-age=86400"})
+
+
 @app.get("/api/jobs/{job_id}/download")
 def download(job_id: str, request: Request, mode: str = "corrected"):
     auth_check(request)
