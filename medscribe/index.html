@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#112b38" />
+  <title>MedScribe | 무료 의학 강의 녹음 전사</title>
+  <style>
+    :root{--ink:#19303c;--sub:#627684;--line:#dfe8e9;--deep:#123744;--sea:#0b8e8a;--mint:#e6f5f1;--bg:#f5f8f8;--paper:#fff;--error:#b53e45}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Segoe UI",sans-serif;color:var(--ink);font-size:15px;line-height:1.6}
+    header{background:linear-gradient(125deg,#102d3b 4%,#194a52 100%);color:white;padding:30px max(22px,calc((100vw - 1110px)/2)) 34px}header h1{font-size:32px;letter-spacing:-1.3px;margin:5px 0 6px}header p{color:#c8dfe0;margin:0;max-width:750px}.brand{font-size:12px;font-weight:800;letter-spacing:2.5px;color:#a1e6d8}.badges{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}.badge{font-size:12px;border:1px solid #527c81;padding:4px 10px;border-radius:30px;color:#d8f5ef}
+    main{max-width:1110px;margin:24px auto 70px;padding:0 20px}.grid{display:grid;grid-template-columns:390px minmax(0,1fr);gap:18px;align-items:start}.card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:23px;box-shadow:0 7px 25px #173a4210}.card h2{font-size:17px;margin:0 0 16px;letter-spacing:-.5px}.section-label{font-size:12px;font-weight:800;color:var(--sea);letter-spacing:1.2px;margin-bottom:6px}.stack{display:grid;gap:14px}.drop{border:2px dashed #9fceca;background:#f2faf8;border-radius:14px;padding:22px 13px;text-align:center;cursor:pointer;outline:none}.drop:hover,.drop.dragging,.drop:focus-visible{background:#e4f4ef;border-color:#0b8e8a}.drop strong{display:block;font-size:17px}.drop small{color:var(--sub);display:block;margin:6px auto 0}.drop .symbol{font-size:30px;margin-bottom:5px}input[type=file]{display:none}
+    label.field{display:block;font-size:13px;color:#435d68;font-weight:800;margin-bottom:6px}select, input[type=text],textarea{width:100%;border:1px solid #cddcdb;border-radius:10px;background:#fff;font:inherit;color:var(--ink);padding:11px 12px}select:focus,textarea:focus,input:focus{outline:2px solid #82cbc2;outline-offset:1px}textarea{resize:vertical;min-height:300px;font-family:ui-monospace,SFMono-Regular,Consolas,"D2Coding",monospace;font-size:13px;line-height:1.85;white-space:pre-wrap}button{border:0;border-radius:10px;padding:11px 15px;font:inherit;font-weight:800;cursor:pointer;min-height:45px}button:disabled{opacity:.45;cursor:not-allowed}.primary{background:#097e7a;color:white;width:100%;font-size:16px}.primary:hover:not(:disabled){background:#086f6c}.outline{background:white;color:#225464;border:1px solid #b6cece}.outline:hover:not(:disabled){background:#eff8f6}.soft{background:#e8f4f1;color:#0a645f}.danger{color:var(--error);background:#fff0ee}.row{display:flex;gap:8px;flex-wrap:wrap}.row>button{flex:1;white-space:nowrap}.muted{color:var(--sub);font-size:13px}.callout{background:#f2f7f6;border-left:3px solid #66b9ad;padding:13px;border-radius:6px;font-size:13px;color:#3e5a64}.warning{background:#fff8eb;border-left-color:#e9b459}.status{padding:10px 0;color:#3e5c67;font-size:13px;min-height:45px;white-space:pre-wrap;overflow-wrap:anywhere}.progress{height:10px;border-radius:99px;background:#e1eeeb;overflow:hidden}.bar{height:100%;background:linear-gradient(90deg,#39b7a3,#087f7d);width:0%;transition:width .2s}.statline{display:flex;justify-content:space-between;gap:8px;color:#6a838b;font-size:12px;font-weight:700;margin-top:7px}.filepill{font-size:12px;color:#3c6070;border:1px solid #d7e8e8;background:#f7fbfa;border-radius:9px;padding:10px;overflow-wrap:anywhere;display:none}.result-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.result-head .tag{font-size:12px;color:var(--sea);background:var(--mint);border-radius:7px;padding:4px 9px;font-weight:800}audio{width:100%;margin:4px 0 13px}footer{max-width:1100px;margin:0 auto 40px;padding:0 22px;color:#799099;font-size:12px}.mini{font-size:12px;color:#7a8b91}.checkrow{display:flex;gap:7px;align-items:center;font-size:13px;color:#3c5865}.checkrow input{accent-color:#0b8e8a}.hide{display:none!important}hr{height:1px;border:0;background:var(--line);margin:6px 0}.three{display:grid;grid-template-columns:1fr 1fr;gap:10px}a{color:#087c78;text-underline-offset:3px}#log{font-size:12px;max-height:130px;overflow:auto;white-space:pre-line;color:#6b7c80}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e5159;color:white;padding:10px 17px;border-radius:11px;box-shadow:0 5px 30px #3334;display:none;z-index:10}
+    @media(max-width:840px){header{padding:29px 22px 32px}header h1{font-size:28px}.grid{grid-template-columns:1fr}.card{padding:19px}main{margin:16px auto 55px;padding:0 14px}textarea{min-height:400px}.row>button{font-size:13px;padding:9px 10px}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="brand">MEDSCRIBE · LOCAL WHISPER</div>
+  <h1>의학 강의, 빠짐없이 기록하기.</h1>
+  <p>녹음파일을 선택하면 기기에서 Whisper로 전사합니다. 구독료·API 키·회원가입 없이 사용할 수 있는 개인용 실험판입니다.</p>
+  <div class="badges"><span class="badge">서버에 녹음 업로드하지 않음</span><span class="badge">한국어 + 영어 의학용어</span><span class="badge">강의 녹음 후 전사</span><span class="badge">TXT 다운로드</span></div>
+</header>
+<main>
+<div class="grid">
+  <section class="card stack" aria-labelledby="controlTitle">
+    <div><div class="section-label">01 · AUDIO</div><h2 id="controlTitle">녹음파일 불러오기</h2>
+      <div id="drop" class="drop" role="button" tabindex="0" aria-label="녹음파일 선택하기">
+        <div class="symbol">🎧</div><strong>파일 선택 / 여기로 끌어놓기</strong><small>M4A · MP3 · WAV · AAC 등 브라우저 지원 형식</small>
+      </div><input id="fileInput" type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.mp4" />
+      <div id="filePill" class="filepill" aria-live="polite"></div>
+    </div>
+    <div><div class="section-label">02 · MODEL</div><h2>전사 설정</h2>
+      <div class="stack">
+        <div><label class="field" for="model">Whisper 모델</label><select id="model"><option value="whisper-tiny">Tiny — 가벼운 테스트용</option><option value="whisper-base" selected>Base — 아이패드 권장 시작</option><option value="whisper-small">Small — 더 정확할 수 있으나 무거움</option></select><div class="mini">처음 실행 시 AI 모델을 다운로드합니다(수십~수백 MB). 정확도는 보장되지 않습니다.</div></div>
+        <div class="three"><div><label class="field" for="device">연산 방식</label><select id="device"><option value="auto" selected>자동 (권장)</option><option value="wasm">CPU · 안정성</option><option value="webgpu">GPU · 속도 시도</option></select></div><div><label class="field" for="language">언어</label><select id="language"><option value="ko" selected>한국어 중심 (영어 혼용)</option><option value="auto">자동 감지</option><option value="en">영어 중심</option></select></div></div>
+        <label class="checkrow"><input id="timecodes" type="checkbox" checked> 문단 앞에 녹음 위치 [시:분:초] 표시</label>
+      </div>
+    </div>
+    <div class="callout warning"><b>아이패드 사용 팁</b><br>긴 녹음은 20~30분씩 나눈 파일을 권장해요. Safari를 화면에 유지하고 다른 앱으로 전환하지 마세요. CPU 모드는 느릴 수 있고, GPU는 메모리 문제로 중단될 수 있어요.</div>
+    <div class="stack">
+      <button id="startBtn" class="primary" disabled>파일을 선택해 주세요</button>
+      <div class="row"><button id="stopBtn" class="outline" disabled>중지 (현재 구간 후)</button><button id="resetBtn" class="outline">새 작업</button></div>
+      <div><div id="status" class="status" role="status">파일을 선택하면 시작할 수 있어요.</div><div class="progress"><div id="bar" class="bar"></div></div><div class="statline"><span id="phase">준비</span><span id="percent">0%</span></div></div>
+      <div id="resumeBox" class="callout hide"><strong>저장된 작업이 있어요.</strong><div class="mini">같은 파일을 다시 선택하면 중간부터 이어서 시도할 수 있어요. 이미 생성된 문장은 로컬에 보관돼 있어요.</div><button id="resumeBtn" class="soft" style="margin-top:8px;width:100%">저장된 전사 불러오기</button></div>
+    </div>
+  </section>
+  <section class="card stack" aria-labelledby="resultTitle">
+    <div class="result-head"><div><div class="section-label">03 · TRANSCRIPT</div><h2 id="resultTitle" style="margin-bottom:0">전사 결과</h2></div><span class="tag" id="transcriptTag">원문 전사 · 검수 필요</span></div>
+    <p class="muted" style="margin:-2px 0 0">완성된 문장을 직접 수정할 수 있어요. 자동 문장 교정이나 의학적 추측은 적용하지 않습니다. 녹음 자체가 불명확하면 잘못 인식될 수 있어요.</p>
+    <audio id="player" controls class="hide"></audio>
+    <textarea id="transcript" placeholder="전사 시작 후 여기에 음성인식 결과가 쌓입니다.&#10;&#10;30분 전사라면 기기 성능에 따라 시간이 오래 걸릴 수 있습니다." spellcheck="false"></textarea>
+    <div class="row"><button id="downloadBtn" class="soft" disabled>TXT 내려받기</button><button id="copyBtn" class="outline" disabled>전체 복사</button></div>
+    <div class="callout"><b>중요: 빠진 내용이 없다고 보장하지 않아요.</b><br>Whisper는 전문용어·숫자·부정 표현을 틀릴 수 있고, 침묵에서는 말을 만들어내기도 해요. 의학 강의에서는 오디오와 대조해 검수해 주세요. 전사는 기기에서만 처리하지만 첫 모델 다운로드에는 인터넷이 필요해요.</div>
+    <details><summary style="cursor:pointer;font-weight:700;font-size:13px">기술 정보 · 오류 해결</summary><div id="log"></div><p class="mini">이 페이지는 무료 공개 음성인식 모델을 브라우저에서 실행합니다. 라이브러리는 CDN, 모델은 Hugging Face에서 내려받습니다. 오디오 데이터는 전사 서버로 전송하지 않습니다. Safari가 메모리 부족으로 종료되면 더 작은 파일로 나누거나 Tiny/Base·CPU 모드로 다시 시도하세요. 웹사이트는 HTTPS 배포를 권장합니다.</p></details>
+  </section>
+</div>
+</main>
+<footer>MedScribe · 개인 학습용 프로토타입 · Whisper / Transformers.js · 브라우저 기능과 기기 사양에 따라 지원 여부가 달라집니다. 녹음 및 강의자료 이용 규정을 확인하세요.</footer>
+<div id="toast" class="toast"></div>
+<script type="module">
+const $ = id => document.getElementById(id);
+const ui = {file:$('fileInput'),drop:$('drop'),pill:$('filePill'),start:$('startBtn'),stop:$('stopBtn'),reset:$('resetBtn'),model:$('model'),device:$('device'),language:$('language'),timecodes:$('timecodes'),status:$('status'),bar:$('bar'),phase:$('phase'),percent:$('percent'),text:$('transcript'),audio:$('player'),copy:$('copyBtn'),download:$('downloadBtn'),log:$('log'),resumeBox:$('resumeBox'),resume:$('resumeBtn'),tag:$('transcriptTag')};
+let currentFile=null, currentURL=null, busy=false, cancel=false, transcriber=null, loadedModel='', loadedDevice='';
+let cursor=0, lastSignature='', resumeDraft=null, fileDuration=0, lastSaved=null;
+const SAVE_KEY='medscribe_local_last_v1';
+const print=(msg)=>{const time=new Date().toLocaleTimeString('ko-KR');ui.log.textContent += `[${time}] ${msg}\n`;ui.log.scrollTop=ui.log.scrollHeight;};
+const status=(msg)=>{ui.status.textContent=msg;print(msg)};
+const pct=(n, stage)=>{const p=Math.min(100,Math.max(0,Math.round(n)));ui.bar.style.width=p+'%';ui.percent.textContent=p+'%';if(stage)ui.phase.textContent=stage;};
+const timeStr=(seconds)=>{const n=Math.max(0,Math.floor(seconds||0));return [Math.floor(n/3600),Math.floor(n/60)%60,n%60].map(x=>String(x).padStart(2,'0')).join(':');};
+function signature(file){return `${file.name}|${file.size}|${file.lastModified}`;}
+function saved(){try{return JSON.parse(localStorage.getItem(SAVE_KEY)||'null')}catch{return null}}
+function save(){if(!currentFile)return;const item={signature:lastSignature,model:ui.model.value,device:ui.device.value,language:ui.language.value,cursor,text:ui.text.value,completed:cursor>=fileDuration&&fileDuration>0,updated:Date.now()};try{localStorage.setItem(SAVE_KEY,JSON.stringify(item));lastSaved=item}catch(e){print('저장 실패: '+e.message)}}
+function updateButtons(){ui.copy.disabled=ui.download.disabled=!ui.text.value.trim();ui.start.disabled=busy||!currentFile;ui.stop.disabled=!busy;ui.start.textContent=busy?'전사 진행 중…':(cursor>0?'이어서 전사 시작':'전사 시작');}
+function showToast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2600)}
+function selectFile(file){if(!file)return;if(busy){showToast('전사 중에는 파일을 변경할 수 없어요.');return;}
+ currentFile=file;lastSignature=signature(file);cursor=0;fileDuration=0;ui.text.value='';ui.log.textContent='';ui.pill.style.display='block';ui.pill.textContent=`${file.name} · ${(file.size/1048576).toFixed(1)} MB`;status('파일을 선택했어요. 모델과 언어를 확인하고 전사를 시작해 주세요.');pct(0,'준비');
+ if(currentURL)URL.revokeObjectURL(currentURL);currentURL=URL.createObjectURL(file);ui.audio.src=currentURL;ui.audio.classList.remove('hide');
+ const draft=saved();resumeDraft=draft?.signature===lastSignature?draft:null;ui.resumeBox.classList.toggle('hide',!resumeDraft||!resumeDraft.text);if(resumeDraft?.completed)ui.resume.textContent='완료된 이전 결과 불러오기';else ui.resume.textContent='저장된 전사 불러오기';updateButtons();
+}
+ui.drop.addEventListener('click',()=>ui.file.click());ui.drop.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();ui.file.click()}});
+ui.file.addEventListener('change',e=>selectFile(e.target.files?.[0]));
+for(const ev of ['dragenter','dragover'])ui.drop.addEventListener(ev,e=>{e.preventDefault();ui.drop.classList.add('dragging')});
+for(const ev of ['dragleave','drop'])ui.drop.addEventListener(ev,e=>{e.preventDefault();ui.drop.classList.remove('dragging')});
+ui.drop.addEventListener('drop',e=>selectFile(e.dataTransfer?.files?.[0]));
+ui.resume.addEventListener('click',()=>{const s=resumeDraft;if(!s)return;ui.model.value=s.model;ui.device.value=s.device;ui.language.value=s.language;cursor=s.cursor||0;ui.text.value=s.text||'';ui.resumeBox.classList.add('hide');updateButtons();status(`이전 전사를 불러왔어요. 저장된 처리 위치: ${timeStr(cursor)}. 재개하려면 전사 시작을 누르세요.`);});
+ui.stop.addEventListener('click',()=>{cancel=true;status('중지 요청을 받았어요. 현재 처리 중인 구간이 끝나면 저장하고 멈춥니다.');});
+ui.reset.addEventListener('click',()=>{if(busy){showToast('먼저 중지 버튼을 누르고 종료되면 새 작업을 시작해 주세요.');return;}currentFile=null;cursor=0;fileDuration=0;resumeDraft=null;ui.file.value='';ui.pill.style.display='none';ui.resumeBox.classList.add('hide');ui.text.value='';ui.audio.classList.add('hide');ui.audio.removeAttribute('src');if(currentURL)URL.revokeObjectURL(currentURL);currentURL=null;pct(0,'준비');status('새 작업을 시작할 수 있어요.');updateButtons()});
+ui.text.addEventListener('input',()=>{if(!busy)save();updateButtons()});
+ui.copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(ui.text.value);showToast('전사문을 복사했어요.')}catch{ui.text.select();document.execCommand('copy');showToast('전사문을 복사했어요.')}});
+ui.download.addEventListener('click',()=>{const contents=ui.text.value;const blob=new Blob(['\ufeff'+contents],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(currentFile?.name||'transcript').replace(/\.[^.]+$/,'')+'_전사.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2500)});
+// The model runs in this browser; no transcription server/API key is used.
+async function getTranscriber(){
+ const deviceSelection=ui.device.value;
+ let device=deviceSelection==='auto' ? ((navigator.gpu&&!/iPhone|iPad|iPod/i.test(navigator.userAgent))?'webgpu':'wasm') : deviceSelection;
+ if(device==='webgpu'&&!navigator.gpu){status('이 브라우저는 GPU를 지원하지 않아 CPU 모드로 변경합니다.');device='wasm';}
+ const key=ui.model.value+'|'+device;
+ if(transcriber&&loadedModel===key)return transcriber;
+ status('음성인식 라이브러리를 불러오고 있어요…');pct(1,'라이브러리');
+ const {pipeline,env}=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1');
+ env.allowLocalModels=false;
+ const modelId='onnx-community/'+ui.model.value;
+ const callback=(item)=>{if(!busy)return;const n=item?.progress;if(item?.status==='progress'&&typeof n==='number')pct(Math.min(14,2+n*.12),'AI 모델 다운로드');};
+ const init=async(d)=>{const opts={device:d,progress_callback:callback,dtype:d==='webgpu'?{encoder_model:'fp32',decoder_model_merged:'q4'}:{encoder_model:'q8',decoder_model_merged:'q8'}};return await pipeline('automatic-speech-recognition',modelId,opts)};
+ try{transcriber=await init(device)}catch(err){
+   if(device==='webgpu'&&deviceSelection==='auto'){status('GPU 초기화에 실패하여 CPU로 다시 시도합니다.');print('GPU 실패: '+err.message);device='wasm';transcriber=await init('wasm');}
+   else throw err;
+ }
+ loadedModel=ui.model.value+'|'+device;loadedDevice=device;return transcriber;
+}
+async function decodeAudio(file){
+ status('음성파일을 읽고 16kHz로 변환 중이에요. 긴 파일에서는 메모리가 많이 필요할 수 있어요.');pct(14,'오디오 디코딩');
+ const AC=window.AudioContext||window.webkitAudioContext;if(!AC)throw Error('이 브라우저는 오디오 디코딩을 지원하지 않아요.');
+ let context;try{context=new AC({sampleRate:16000})}catch{context=new AC()}
+ try{
+   const ab=await file.arrayBuffer();const decoded=await context.decodeAudioData(ab); const rate=decoded.sampleRate;
+   fileDuration=decoded.duration;
+   print(`오디오 길이 ${timeStr(fileDuration)} / 샘플레이트 ${rate}Hz / 채널 ${decoded.numberOfChannels}`);
+   const outputLen=Math.floor(decoded.length*16000/rate);const output=new Float32Array(outputLen);const channels=[];for(let i=0;i<Math.min(2,decoded.numberOfChannels);i++)channels.push(decoded.getChannelData(i));
+   const ratio=rate/16000;
+   // Downmix channels and resample directly, avoiding a second enormous AudioBuffer.
+   for(let i=0;i<outputLen;i++){
+     const pos=i*ratio,k=Math.floor(pos),frac=pos-k;let value=0;
+     for(const c of channels){const a=c[k]||0,b=c[Math.min(k+1,c.length-1)]||0;value += a+(b-a)*frac;}
+     output[i]=value/channels.length;
+   }
+   return output;
+ }finally{await context.close().catch(()=>{});}
+}
+function formatTranscription(result,batchOffset,lowerBound,upperBound,showT){
+ const chunks=Array.isArray(result?.chunks)?result.chunks:[];
+ if(!chunks.length){const raw=(result?.text||'').trim();return raw?`${showT?'['+timeStr(batchOffset)+'] ':''}${raw}\n\n`:'';}
+ const rows=[];
+ for(const c of chunks){const text=String(c.text||'').trim();if(!text)continue;
+   const a=Number(c.timestamp?.[0]);const b=Number(c.timestamp?.[1]);const hasTiming=Number.isFinite(a)&&Number.isFinite(b);
+   const midpoint=hasTiming?(a+b)/2+batchOffset:batchOffset;
+   if(midpoint+0.001<lowerBound||midpoint>=upperBound+0.001)continue;
+   const stamp=hasTiming?batchOffset+Math.max(0,a):batchOffset;
+   rows.push(`${showT?'['+timeStr(stamp)+'] ':''}${text}`);
+ }
+ return rows.length?rows.join('\n')+'\n\n':'';
+}
+ui.start.addEventListener('click',async()=>{
+ if(busy||!currentFile)return;
+ busy=true;cancel=false;updateButtons();const f=currentFile;let audio;
+ try{
+   const recognizer=await getTranscriber();
+   audio=await decodeAudio(f);
+   if(audio.length<1600)throw Error('오디오가 너무 짧거나 디코딩에 실패했어요.');
+   if(cursor>0&&cursor>fileDuration+1){status('이전 작업의 위치가 파일 길이보다 길어 처음부터 시작합니다.');cursor=0;}
+   // Keep 8s of shared audio between 120s batches, and commit only stable middle segments.
+   const BATCH=120, OVERLAP=8;let i=0;
+   while(cursor<fileDuration-.08&&!cancel){
+     const from=Math.max(0,cursor===0?0:cursor-OVERLAP/2);
+     const to=Math.min(fileDuration,from+BATCH);
+     const region=audio.subarray(Math.floor(from*16000),Math.min(audio.length,Math.ceil(to*16000)));
+     const commitUntil=to>=fileDuration-.08?fileDuration:Math.max(cursor,to-OVERLAP/2);
+     const overall=15+(cursor/fileDuration)*83;pct(overall,'강의 전사 중');
+     status(`구간 처리 중: ${timeStr(from)}–${timeStr(to)} / 전체 ${timeStr(fileDuration)}.\n지금 처리 중인 구간이 끝나면 화면에 결과가 추가됩니다.`);
+     const opts={task:'transcribe',return_timestamps:true,chunk_length_s:30,stride_length_s:5};
+     if(ui.language.value!=='auto')opts.language=ui.language.value==='ko'?'korean':'english';
+     const result=await recognizer(region,opts);
+     const text=formatTranscription(result,from,cursor,commitUntil,ui.timecodes.checked);
+     if(text)ui.text.value+=text;
+     cursor=commitUntil;save();updateButtons();i++;
+     pct(15+(cursor/fileDuration)*83,'구간 저장 완료');
+     // Yield a paint frame, especially important for iPad Safari.
+     await new Promise(r=>setTimeout(r,20));
+     if(to>=fileDuration-.08)break;
+   }
+   if(cancel){status(`중지했어요. ${timeStr(cursor)}까지 처리한 내용을 보관했어요. 같은 파일을 선택하면 다시 이어서 전사할 수 있어요.`);}
+   else{cursor=fileDuration;pct(100,'완료');save();status('전사가 완료됐어요! TXT를 저장하고 오디오와 비교해 중요한 의학용어·수치를 검수해 주세요.');ui.tag.textContent='전사 완료 · 검수 필요';}
+ }catch(e){const msg=String(e?.message||e);status('전사를 완료하지 못했어요: '+msg+'\n다른 브라우저, Tiny/Base, CPU 모드를 시도하거나 파일을 더 짧게 나눠 주세요.');print('ERROR: '+(e?.stack||e));save();}
+ finally{audio=null;busy=false;cancel=false;updateButtons();}
+});
+updateButtons();
+</script>
+</body>
+</html>
