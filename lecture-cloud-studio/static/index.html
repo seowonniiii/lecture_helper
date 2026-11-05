@@ -105,7 +105,6 @@ async function startUpload(){const audio=$("audioInput").files[0],pdf=$("pdfInpu
 function logProgress(s){let el=$("progressLogs");el.textContent+="• "+s+"\n";el.scrollTop=el.scrollHeight}
 function repairAI(){
   if(!currentId)return;
-  if(!confirm("저장된 음성인식 결과만 사용해 Gemini 교정과 PDF 페이지 매칭을 재실행할까요? 오디오 재전사 비용은 발생하지 않습니다."))return;
   $("progressLogs").textContent="";
   $("workEmpty").classList.add("hidden");
   runJob(currentId,"repair");
