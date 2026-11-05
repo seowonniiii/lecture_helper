@@ -26,6 +26,9 @@ from pathlib import Path
 
 import fitz
 from transcript_import import parse_local_transcript
+from cloudflare_stt import (configured as cloudflare_configured,
+                            build_medical_prompt, transcribe_cloudflare_chunk)
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from google.api_core.client_options import ClientOptions
@@ -198,7 +201,8 @@ def duration_seconds(file: Path) -> float:
     return float(out)
 
 
-def make_chunks(audio: Path, folder: Path):
+def make_chunks(audio: Path, folder: Path, chunk_seconds: int = CHUNK_SECONDS,
+                overlap_seconds: int = OVERLAP_SECONDS, codec: str = "flac"):
     duration = duration_seconds(audio)
     if duration <= 0:
         raise ValueError("오디오 길이를 읽을 수 없습니다.")
@@ -206,13 +210,14 @@ def make_chunks(audio: Path, folder: Path):
     start = 0.0
     i = 0
     while start < duration - 0.05:
-        end = min(duration, start + CHUNK_SECONDS)
-        path = folder / f"chunk_{i:03}.flac"
+        end = min(duration, start + chunk_seconds)
+        path = folder / f"chunk_{i:03}.{codec}"
         cmd = [
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
             "-ss", f"{start:.3f}", "-i", str(audio),
             "-t", f"{end - start:.3f}", "-vn",
-            "-ac", "1", "-ar", "16000", "-c:a", "flac", str(path),
+            "-ac", "1", "-ar", "16000",
+            "-c:a", "pcm_s16le" if codec == "wav" else "flac", str(path),
         ]
         subprocess.run(cmd, check=True, timeout=240)
         if not path.exists() or path.stat().st_size < 1000:
@@ -221,7 +226,7 @@ def make_chunks(audio: Path, folder: Path):
                        "end": round(end, 2), "path": path})
         if end >= duration - 0.05:
             break
-        start = end - OVERLAP_SECONDS
+        start = end - overlap_seconds
         i += 1
     return duration, chunks
 
@@ -641,19 +646,54 @@ def pipeline(job_id: str, emit):
                 + ": Cloud Speech-to-Text 재실행 없음"
             )
         elif "audio" in local:
-            length, chunks = make_chunks(local["audio"], folder)
-            emit(f"{length/60:.1f}분 오디오를 {len(chunks)}개 구간(각 18분 이하)으로 자동 분할")
-            outputs = []
-            region = SPEECH_REGION
-            # Completed audio chunks are cached and never re-billed on retry.
-            for i, chunk in enumerate(chunks):
-                emit(f"음성인식 {i+1}/{len(chunks)} 구간 처리 중 ({region})")
-                part = transcribe_chunk(job_id, chunk, region, emit)
-                outputs.append(part)
-                region = part.get("region", region)
-                emit(f"음성인식 {i+1}/{len(chunks)} 구간 완료 ({region})")
-            blocks = get_audio_blocks(outputs)
-            source_type = "chirp_3"
+            engine = meta.get("speech_engine", "chirp_3")
+            if engine == "cloudflare_whisper":
+                if not cloudflare_configured():
+                    raise RuntimeError(
+                        "Cloudflare Whisper 설정이 아직 없습니다. "
+                        "connect-cloudflare.sh로 계정 ID와 토큰을 연결하세요."
+                    )
+                length, chunks = make_chunks(
+                    local["audio"], folder, chunk_seconds=60,
+                    overlap_seconds=3, codec="wav"
+                )
+                medical_hint = build_medical_prompt(pdf_pages)
+                emit(
+                    f"Cloudflare Whisper Large V3 Turbo: {length/60:.1f}분을 "
+                    f"{len(chunks)}개 짧은 구간으로 분할"
+                    + (" · PDF 의학용어 힌트 적용" if medical_hint else "")
+                )
+                outputs = []
+                # Keep concurrency modest to prevent quota bursts, and sort
+                # completed segments by their original audio chunk number.
+                with ThreadPoolExecutor(max_workers=3) as pool:
+                    futures = {
+                        pool.submit(
+                            transcribe_cloudflare_chunk, chunk=chunk,
+                            job_id=job_id, bucket_blob=object_blob,
+                            prompt=medical_hint, emit=emit,
+                        ): chunk
+                        for chunk in chunks
+                    }
+                    for future in as_completed(futures):
+                        part = future.result()
+                        outputs.append(part)
+                        emit(f"Whisper 전사 완료: {len(outputs)}/{len(chunks)}")
+                blocks = get_audio_blocks(outputs)
+                source_type = "cloudflare_whisper_large_v3_turbo"
+            else:
+                length, chunks = make_chunks(local["audio"], folder)
+                emit(f"{length/60:.1f}분 오디오를 {len(chunks)}개 구간(각 18분 이하)으로 자동 분할")
+                outputs = []
+                region = SPEECH_REGION
+                for i, chunk in enumerate(chunks):
+                    emit(f"음성인식 {i+1}/{len(chunks)} 구간 처리 중 ({region})")
+                    part = transcribe_chunk(job_id, chunk, region, emit)
+                    outputs.append(part)
+                    region = part.get("region", region)
+                    emit(f"음성인식 {i+1}/{len(chunks)} 구간 완료 ({region})")
+                blocks = get_audio_blocks(outputs)
+                source_type = "chirp_3"
         else:
             blocks = get_original_blocks(reference or "")
             source_type = "clova_txt"
@@ -705,6 +745,7 @@ class Login(BaseModel):
 
 class NewJob(BaseModel):
     title: str = Field(default="새 강의", max_length=160)
+    speech_engine: str = "cloudflare_whisper"
 
 
 class UploadRequest(BaseModel):
@@ -753,7 +794,7 @@ def me(request: Request):
     auth_check(request)
     return {"ok": True, "project": PROJECT, "bucket": BUCKET,
             "speech_model": SPEECH_MODEL, "speech_region": SPEECH_REGION,
-            "gemini_model": GEMINI_MODEL}
+            "gemini_model": GEMINI_MODEL, "cloudflare_ready": cloudflare_configured()}
 
 
 @app.get("/api/jobs")
@@ -772,8 +813,11 @@ def list_jobs(request: Request):
 @app.post("/api/jobs")
 def create_job(request: Request, data: NewJob):
     auth_check(request)
+    if data.speech_engine not in {"cloudflare_whisper", "chirp_3"}:
+        raise HTTPException(400, "음성인식 모델을 확인해 주세요.")
     job_id = uuid.uuid4().hex
     meta = {"id": job_id, "title": data.title.strip() or "새 강의",
+            "speech_engine": data.speech_engine,
             "created": now(), "updated": now(), "stage": "created", "files": {}}
     save_json(meta_path(job_id), meta)
     return meta
