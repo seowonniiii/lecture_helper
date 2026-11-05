@@ -129,13 +129,22 @@ def gemini_json(prompt: str) -> dict:
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.1,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                     response_mime_type="application/json",
                     max_output_tokens=8192,
                 ),
             )
             if not res.text:
-                raise RuntimeError("Gemini가 빈 결과를 반환했습니다.")
-            return json.loads(res.text)
+                reason = None
+                try:
+                    reason = res.candidates[0].finish_reason
+                except Exception:
+                    pass
+                raise RuntimeError(f"Gemini 빈 응답(종료 사유: {reason}). 출력 제한 또는 모델 권한을 확인하세요.")
+            try:
+                return json.loads(res.text)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"Gemini JSON 형식 오류: {exc}; 반환된 텍스트: {res.text[:250]}") from exc
         except Exception as exc:
             if not is_429(exc):
                 raise
@@ -428,17 +437,14 @@ def correct_blocks(blocks: list[dict], pages: list[dict], emit, job_id: str):
                     break
                 except Exception as exc:
                     error = str(exc)
-        if items is None and error and ("429" in error or "Vertex AI Gemini" in error):
-            raise RuntimeError("Gemini 교정 429: " + error[:400])
+        if items is None:
+            # Hard failure: do not publish untouched transcript as "completed".
+            raise RuntimeError("Gemini 교정·페이지 매칭 실패: " + str(error)[:650])
         for block in batch:
-            if items is None:
-                block["flags"].append("AI 교정 실패: 원문 유지 / " + str(error)[:120])
-                continue
             item = items[block["id"]]
             value = item.get("corrected")
             if not isinstance(value, str) or not value.strip():
-                block["flags"].append("AI 교정문 누락: 원문 유지")
-                continue
+                raise RuntimeError(f"{block['id']}의 AI 교정문이 비어 있습니다. 불완전한 결과는 저장하지 않습니다.")
             block["corrected"] = value
             proposed = item.get("page")
             try:
@@ -531,6 +537,72 @@ def make_questions(notes: dict, emit):
     except Exception as exc:
         emit(f"문제 생성 보류: {str(exc)[:100]}")
         return []
+
+
+def repair_ai_from_saved_transcript(job_id: str, emit):
+    """Fix existing lecture results using their persisted STT blocks. No new STT."""
+    meta = load_json(meta_path(job_id))
+    res_blob = object_blob(result_path(job_id))
+    raw_blob = object_blob(job_path(job_id, "raw_blocks.json"))
+    if not res_blob.exists() and not raw_blob.exists():
+        raise RuntimeError("저장된 음성인식 원문이 없습니다. 일반 처리부터 실행하세요.")
+    previous = json.loads(res_blob.download_as_text(encoding="utf-8")) if res_blob.exists() else {}
+    if raw_blob.exists():
+        raw_data = json.loads(raw_blob.download_as_text(encoding="utf-8"))
+        original = raw_data.get("blocks", [])
+    else:
+        original = previous.get("blocks", [])
+    blocks = []
+    for i, block in enumerate(original):
+        raw = block.get("raw", "")
+        if not raw:
+            continue
+        blocks.append({
+            "id": block.get("id", f"T{i+1:04d}"), "raw": raw,
+            "corrected": raw, "start": block.get("start"),
+            "end": block.get("end"), "chunk": block.get("chunk"),
+            "page": None, "confidence": 0.0, "flags": []
+        })
+    if not blocks:
+        raise RuntimeError("저장된 원문 문단이 비어 있습니다.")
+    pages = previous.get("pages", [])
+    if not pages and meta.get("files", {}).get("pdf"):
+        with tempfile.TemporaryDirectory(prefix="repair_pdf_") as td:
+            pdf = Path(td) / "lecture.pdf"
+            object_blob(meta["files"]["pdf"]).download_to_filename(str(pdf))
+            pages = extract_pdf(pdf)
+    emit(f"기존 전사 원문 {len(blocks)}개 문단 불러옴: 음성 재인식 없음")
+    # Important: run everything before publishing. Failure leaves old result untouched.
+    correct_blocks(blocks, pages, emit, job_id)
+    corrected_count = sum(b["corrected"] != b["raw"] for b in blocks)
+    matched = sum(b["page"] is not None for b in blocks)
+    emit(f"Gemini 응답 완료: 문구 변경 {corrected_count}개, 페이지 매칭 {matched}개")
+    notes = build_study(blocks, pages, emit) if pages else {}
+    questions = make_questions(notes, emit) if notes else []
+    new = dict(previous)
+    new.update({
+        "job_id": job_id, "created": now(),
+        "blocks": blocks, "pages": pages, "notes": notes, "questions": questions,
+        "source_type": previous.get("source_type", "saved_transcript"),
+        "verification": {
+            "input_blocks": len(blocks),
+            "output_blocks": len(blocks),
+            "all_ids_preserved": True,
+            "matched_blocks": matched,
+            "unmatched_blocks": len(blocks) - matched,
+            "flagged_blocks": sum(bool(b["flags"]) for b in blocks),
+            "corrected_blocks": corrected_count,
+            "warnings": [],
+            "note": "Gemini 호출에 성공했습니다. 문구가 같을 수도 있으며, 의료 내용 및 페이지는 별도 검증이 필요합니다.",
+        }
+    })
+    save_json(result_path(job_id), new)
+    meta["stage"] = "complete_with_warnings" if new["verification"]["flagged_blocks"] else "complete"
+    meta["updated"] = now()
+    meta.pop("error", None)
+    save_json(meta_path(job_id), meta)
+    emit("AI 교정·매칭 복구 완료. 음성인식은 다시 실행하지 않았습니다.")
+    return new
 
 
 def pipeline(job_id: str, emit):
@@ -753,8 +825,11 @@ def get_job(job_id: str, request: Request):
 async def run_job(job_id: str, request: Request):
     auth_check(request)
     meta = load_json(meta_path(job_id))
-    if meta["stage"] not in {"ready", "failed", "processing"}:
-        raise HTTPException(409, "실행할 수 있는 작업이 아닙니다.")
+    mode = request.query_params.get("mode", "all")
+    if mode not in {"all", "repair"}:
+        raise HTTPException(400, "잘못된 처리 모드")
+    if mode == "all" and meta["stage"] not in {"ready", "failed", "processing"}:
+        raise HTTPException(409, "일반 실행 불가: 이미 처리된 강의라면 AI 복구 버튼을 사용하세요.")
     with active_lock:
         if job_id in active_jobs:
             raise HTTPException(409, "이미 처리 중입니다.")
@@ -766,7 +841,10 @@ async def run_job(job_id: str, request: Request):
 
     def worker():
         try:
-            pipeline(job_id, notify)
+            if mode == "repair":
+                repair_ai_from_saved_transcript(job_id, notify)
+            else:
+                pipeline(job_id, notify)
             stream_queue.put(("done", {"id": job_id}))
         except Exception as exc:
             try:
