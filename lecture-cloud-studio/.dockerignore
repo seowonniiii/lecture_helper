@@ -1,0 +1,13 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.flac
+*.m4a
+*.wav
+*.pdf
+*.txt
+.env
+.env.*
+node_modules
