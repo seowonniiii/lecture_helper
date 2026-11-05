@@ -124,16 +124,20 @@ def is_429(exc: Exception) -> bool:
 def gemini_json(prompt: str) -> dict:
     for attempt in range(4):
         try:
-            res = gclient().models.generate_content(
-                model=GEMINI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.1,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    response_mime_type="application/json",
-                    max_output_tokens=8192,
-                ),
-            )
+            # Keep the SDK client alive for the entire network request.
+            # Calling gclient().models.generate_content(...) on a temporary
+            # object can trigger httpx "client has been closed" (python-genai #1763).
+            with gclient() as client:
+                res = client.models.generate_content(
+                    model=GEMINI_MODEL,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.1,
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        response_mime_type="application/json",
+                        max_output_tokens=8192,
+                    ),
+                )
             if not res.text:
                 reason = None
                 try:
