@@ -73,7 +73,7 @@ gcloud run deploy "$SERVICE" --source . --project="$PROJECT_ID" --region="$REGIO
   --service-account="$SA" \
   --cpu=2 --memory=2Gi --timeout=3600 --concurrency=8 --max-instances=1 \
   --allow-unauthenticated \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GCS_BUCKET=$BUCKET,SPEECH_REGION=us,SPEECH_MODEL=chirp_3,GEMINI_REGION=global,GEMINI_MODEL=gemini-2.5-flash,COOKIE_SECURE=true" \
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GCS_BUCKET=$BUCKET,SPEECH_REGION=us,SPEECH_MODEL=chirp_3,GEMINI_REGION=global,GEMINI_MODEL=gemini-3.8-flash,COOKIE_SECURE=true" \
   --set-secrets="APP_PASSWORD=lecture-studio-password:latest,SESSION_SECRET=lecture-studio-session:latest"
 
 APP_URL="$(gcloud run services describe "$SERVICE" --project="$PROJECT_ID" --region="$REGION" \
