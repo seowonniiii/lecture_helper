@@ -624,6 +624,12 @@ def repair_ai_from_saved_transcript(job_id: str, emit):
             pdf = Path(td) / "lecture.pdf"
             object_blob(meta["files"]["pdf"]).download_to_filename(str(pdf))
             pages = extract_pdf(pdf)
+    # The old result remains available while repair is running; report the
+    # correct in-progress stage so a disconnected client never mistakes it
+    # for a successfully completed repair.
+    meta["stage"], meta["updated"] = "repairing", now()
+    meta.pop("error", None)
+    save_json(meta_path(job_id), meta)
     emit(f"기존 전사 원문 {len(blocks)}개 문단 불러옴: 음성 재인식 없음")
     # Important: run everything before publishing. Failure leaves old result untouched.
     correct_blocks(blocks, pages, emit, job_id)
@@ -653,6 +659,7 @@ def repair_ai_from_saved_transcript(job_id: str, emit):
     meta["stage"] = "complete_with_warnings" if new["verification"]["flagged_blocks"] else "complete"
     meta["updated"] = now()
     meta.pop("error", None)
+    meta.pop("progress", None)
     save_json(meta_path(job_id), meta)
     emit("AI 교정·매칭 복구 완료. 음성인식은 다시 실행하지 않았습니다.")
     return new
@@ -940,9 +947,21 @@ async def run_job(job_id: str, request: Request):
             raise HTTPException(409, "이미 처리 중입니다.")
         active_jobs.add(job_id)
     stream_queue: queue.Queue = queue.Queue()
+    last_progress_saved = [0.0]
 
     def notify(message: str):
         stream_queue.put(("progress", {"message": message, "at": now()}))
+        # Keep a lightweight progress checkpoint in GCS. The browser can
+        # observe it if mobile Safari suspends a long-lived SSE connection.
+        if time.monotonic() - last_progress_saved[0] >= 12:
+            last_progress_saved[0] = time.monotonic()
+            try:
+                state = load_json(meta_path(job_id))
+                if state.get("stage") in {"processing", "repairing"}:
+                    state["progress"], state["updated"] = message, now()
+                    save_json(meta_path(job_id), state)
+            except Exception:
+                pass  # Progress reporting must never break the underlying job.
 
     def worker():
         try:
