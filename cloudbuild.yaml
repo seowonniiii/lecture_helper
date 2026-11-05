@@ -1,0 +1,22 @@
+# GitHub main branch -> Cloud Build -> Cloud Run
+# Uses --image (not --source), so existing Cloud Run env vars and secrets are retained.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    dir: lecture-cloud-studio
+    args: ["build", "-t", "gcr.io/$PROJECT_ID/lecture-cloud-studio:$COMMIT_SHA", "."]
+  - name: gcr.io/cloud-builders/docker
+    args: ["push", "gcr.io/$PROJECT_ID/lecture-cloud-studio:$COMMIT_SHA"]
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - lecture-cloud-studio
+      - "--image=gcr.io/$PROJECT_ID/lecture-cloud-studio:$COMMIT_SHA"
+      - "--region=asia-northeast1"
+      - "--project=$PROJECT_ID"
+      - "--quiet"
+images:
+  - "gcr.io/$PROJECT_ID/lecture-cloud-studio:$COMMIT_SHA"
+options:
+  logging: CLOUD_LOGGING_ONLY
