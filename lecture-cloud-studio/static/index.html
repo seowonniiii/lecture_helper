@@ -245,7 +245,60 @@ function renderResult(){const r=currentData.result;const v=r.verification;const 
 function goToPage(n){const max=currentData?.result?.pages.length||1;currentPage=Math.max(1,Math.min(max,Number(n)||1));$("pageNo").value=currentPage;if(currentId&&currentData?.meta?.files?.pdf){let src="/api/jobs/"+currentId+"/page-image?page="+currentPage;if($("pdfFrame").dataset.src!==src){$("pdfFrame").src=src;$("pdfFrame").alt="강의록 PDF "+currentPage+"페이지";$("pdfFrame").dataset.src=src}}else{$("pdfFrame").removeAttribute("src");$("pdfFrame").dataset.src=""}}
 function changePage(d){goToPage(currentPage+d)}
 function switchTab(tab){for(const x of ["transcript","notes","quiz","verification"])$("tab"+x[0].toUpperCase()+x.slice(1)).classList.toggle("hidden",x!==tab);document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===tab))}
-function renderBlocks(){if(!currentData?.result)return;const search=$("searchBlocks").value.trim().toLowerCase();const blocks=currentData.result.blocks.filter(b=>!search||(b.corrected+" "+b.raw).toLowerCase().includes(search));$("blockList").innerHTML=blocks.map(b=>'<article class="block" id="block-'+safe(b.id)+'"><div class="blocktop"><span class="blockid">'+safe(b.id)+(b.start!=null?" · "+Math.floor(b.start/60)+":"+String(Math.floor(b.start%60)).padStart(2,"0"):"")+'</span><div class="row"><span class="tag '+(b.page===null?"warn":"")+'">'+(b.page?"PDF "+b.page+"p":"미매칭")+'</span><button class="btn smallbtn" onclick="event.stopPropagation();editBlock(\''+safe(b.id)+'\')">수정</button></div></div><p>'+safe(b.corrected)+'</p>'+ ((b.term_changes||[]).length?'<div class="flag" style="color:#18896d">✓ 용어 교정: '+safe(b.term_changes.map(t=>t.from+" → "+t.to).join(" · "))+'</div>':"")+ (b.raw!==b.corrected?'<p class="raw"><b>원문</b> '+safe(b.raw)+'</p>':"")+ (b.flags?.length?'<div class="flag">⚠ '+safe(b.flags.join(" · "))+'</div>':"")+'</article>').join("")||'<div class="empty">검색 결과가 없어요.</div>';document.querySelectorAll(".block").forEach(el=>el.addEventListener("click",()=>{let b=currentData.result.blocks.find(x=>"block-"+x.id===el.id);if(b?.page){goToPage(b.page)}document.querySelectorAll(".block").forEach(x=>x.classList.remove("selected"));el.classList.add("selected")}))}
+// Readable view only: preserve every original block ID, timestamp and text.
+// Whisper emits short segments that are not sentence/paragraph boundaries.
+function groupReadableBlocks(blocks){
+  const groups=[]; let current=[], length=0;
+  function flush(){if(current.length){groups.push(current);current=[];length=0;}}
+  for(const b of blocks){
+    const prev=current[current.length-1];
+    const t=(b.corrected||b.raw||"").trim();
+    const p=(prev?.corrected||prev?.raw||"").trim();
+    const pageBreak=prev && prev.page!=null && b.page!=null && prev.page!==b.page;
+    const pause=prev && prev.end!=null && b.start!=null && b.start-prev.end>8;
+    const chunkBreak=prev && prev.chunk!=null && b.chunk!=null && prev.chunk!==b.chunk;
+    const sentenceEnd=/[.!?。！？][”"')\]]?$/.test(p);
+    if(prev&&(pageBreak||pause||chunkBreak||length+t.length>540||(length>=200&&sentenceEnd)))flush();
+    current.push(b);length+=t.length+1;
+  }
+  flush();return groups;
+}
+function joinReadable(group,key){
+  return group.map(b=>(b[key]||"").trim()).filter(Boolean).join(" ")
+    .replace(/\s+([,.!?;:，。！？])/g,"$1");
+}
+function renderBlocks(){
+  if(!currentData?.result)return;
+  const search=$("searchBlocks").value.trim().toLowerCase();
+  const filtered=currentData.result.blocks.filter(b=>!search||((b.corrected||"")+" "+(b.raw||"")).toLowerCase().includes(search));
+  const groups=groupReadableBlocks(filtered);
+  $("blockList").innerHTML=groups.map(group=>{
+    const first=group[0],last=group[group.length-1];
+    const hasChanges=group.some(b=>b.raw!==b.corrected);
+    const flags=group.flatMap(b=>(b.flags||[]).map(f=>b.id+": "+f));
+    const terms=group.flatMap(b=>(b.term_changes||[]).map(t=>t.from+" → "+t.to));
+    const anchors=group.map(b=>'<span id="block-'+safe(b.id)+'" class="segment-anchor"></span>').join("");
+    const details='<details style="margin-top:10px"><summary class="small" style="cursor:pointer">원본 구간 '+group.length+'개 · 개별 수정 및 확인</summary>'+
+      group.map(b=>'<div style="padding:9px 0;border-top:1px solid #edf0f3"><div class="row between"><span class="small">'+safe(b.id)+'</span><button class="btn smallbtn" onclick="event.stopPropagation();editBlock(\''+safe(b.id)+'\')">이 구간 수정</button></div><p class="small">'+safe(b.corrected||b.raw)+'</p>'+(b.raw!==b.corrected?'<p class="raw"><b>원문</b> '+safe(b.raw)+'</p>':"")+'</div>').join("")+'</details>';
+    return '<article class="block" data-first-id="'+safe(first.id)+'">'+
+      anchors+'<div class="blocktop"><span class="blockid">'+safe(first.id)+(group.length>1?'–'+safe(last.id):"")+
+      (first.start!=null?' · '+Math.floor(first.start/60)+':'+String(Math.floor(first.start%60)).padStart(2,"0"):"")+
+      '</span><div class="row"><span class="tag '+(first.page==null?"warn":"")+'">'+
+      (first.page?'PDF '+first.page+'p':'미매칭')+'</span></div></div>'+
+      '<p style="line-height:1.85;white-space:pre-wrap">'+safe(joinReadable(group,"corrected"))+'</p>'+
+      (hasChanges?'<div class="small" style="color:#18896d">교정본 표시 중 · 원문은 아래 구간별 보기에서 확인</div>':"")+
+      (terms.length?'<div class="flag" style="color:#18896d">✓ 용어 교정: '+safe(terms.join(" · "))+'</div>':"")+
+      (flags.length?'<div class="flag">⚠ '+safe(flags.join(" · "))+'</div>':"")+
+      details+'</article>';
+  }).join("")||'<div class="empty">검색 결과가 없어요.</div>';
+  document.querySelectorAll(".block").forEach(el=>el.addEventListener("click",e=>{
+    if(e.target.closest("button,details,summary"))return;
+    const b=currentData.result.blocks.find(x=>x.id===el.dataset.firstId);
+    if(b?.page)goToPage(b.page);
+    document.querySelectorAll(".block").forEach(x=>x.classList.remove("selected"));
+    el.classList.add("selected");
+  }));
+}
 async function editBlock(id){let b=currentData.result.blocks.find(x=>x.id===id);if(!b)return;let text=prompt("교정문을 수정하세요 (원문은 별도 보존됩니다).",b.corrected);if(text===null)return;let page=prompt("PDF 페이지 번호 (현재 "+(b.page||"미매칭")+", 페이지를 유지하려면 빈칸)", "");let change={id,corrected:text};if(page!==null&&page.trim()!=="")change.page=parseInt(page,10);try{let updated=await api("/api/jobs/"+currentId+"/block",{method:"POST",body:change});Object.assign(b,updated.block);renderBlocks();flash("교정본 저장 완료 (원문 유지)") }catch(e){flash(e.message)}}
 function renderNotes(){let r=currentData.result;let arr=Object.entries(r.notes||{}).sort((a,b)=>+a[0]-+b[0]);$("noteCards").innerHTML=arr.map(([pg,n])=>'<article class="card note"><div class="row between"><h3>PDF '+safe(pg)+'페이지</h3><button class="btn smallbtn" onclick="switchTab(\'transcript\');goToPage('+Number(pg)+')">PDF 보기 →</button></div><div class="body">'+safe(n.note||n.error||"생성된 설명이 없습니다.")+'</div>'+(n.keypoints?.length?"<ul>"+n.keypoints.map(s=>"<li>"+safe(s)+"</li>").join("")+"</ul>":"")+'<div class="small">전사 출처: '+safe((n.source_ids||[]).join(", "))+'</div></article>').join("")||'<div class="card empty">PDF 매칭이 없어 과외 노트를 생성하지 못했어요.</div>'}
 function renderQuiz(){let qs=currentData.result.questions||[];let area=$("quizContainer");if(!qs.length){area.innerHTML='<div class="card empty">AI 확인문제가 아직 생성되지 않았어요.</div>';return}quizIndex=Math.max(0,Math.min(quizIndex,qs.length-1));let q=qs[quizIndex];area.innerHTML='<div class="card"><div class="row between"><span class="tag">AI 연습문제 · 실제 족보 아님</span><span class="small">'+(quizIndex+1)+" / "+qs.length+' · PDF '+safe(q.page||"?")+'p</span></div><h3>'+safe(q.question)+'</h3><div id="choices">'+q.choices.map((s,i)=>'<button class="choice" onclick="chooseAnswer('+i+')">'+(i+1)+". "+safe(s)+'</button>').join("")+'</div><div id="answerBox"></div><div class="row between" style="margin-top:20px"><button class="btn" onclick="nextQuestion(-1)">이전</button><button class="btn primary" onclick="nextQuestion(1)">다음 문제 →</button></div></div>';if(currentData.meta.files.questions)$("questionsOriginal").innerHTML='<a class="btn" href="/api/jobs/'+currentId+'/pdf?kind=questions" target="_blank" rel="noopener">원본 족보 PDF 열기 (문제 자동 복원은 미지원)</a>';else $("questionsOriginal").innerHTML=""}
