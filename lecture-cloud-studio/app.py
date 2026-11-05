@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import fitz
+from transcript_import import parse_local_transcript
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from google.api_core.client_options import ClientOptions
@@ -628,7 +629,18 @@ def pipeline(job_id: str, emit):
         reference = None
         if "txt" in local:
             reference = local["txt"].read_text(encoding="utf-8-sig", errors="replace")
-        if "audio" in local:
+        length = None
+        if "transcript" in local:
+            imported = parse_local_transcript(local["transcript"])
+            blocks = get_audio_blocks([{"number": 0, "segments": imported["segments"]}])
+            length = imported["duration"]
+            source_type = "whisperkit_local"
+            emit(
+                f"로컬 Whisper 원문 {len(blocks)}개 구간 불러옴"
+                + (f" ({imported['model']})" if imported["model"] else "")
+                + ": Cloud Speech-to-Text 재실행 없음"
+            )
+        elif "audio" in local:
             length, chunks = make_chunks(local["audio"], folder)
             emit(f"{length/60:.1f}분 오디오를 {len(chunks)}개 구간(각 18분 이하)으로 자동 분할")
             outputs = []
@@ -667,7 +679,7 @@ def pipeline(job_id: str, emit):
             questions = make_questions(notes, emit)
         result = {
             "job_id": job_id, "source_type": source_type,
-            "created": now(), "audio_length": length if "audio" in local else None,
+            "created": now(), "audio_length": length,
             "blocks": blocks, "pages": pdf_pages, "notes": notes, "questions": questions,
             "clova_reference": reference if "audio" in local else None,
             "verification": {
@@ -681,6 +693,7 @@ def pipeline(job_id: str, emit):
         save_json(result_path(job_id), result)
         meta["stage"] = "complete_with_warnings" if flagged or flags else "complete"
         meta["updated"] = now()
+        meta.pop("error", None)
         save_json(meta_path(job_id), meta)
         emit("완료: 원본·교정본·페이지 매칭·과외 노트 저장")
         return result
@@ -770,7 +783,7 @@ def create_job(request: Request, data: NewJob):
 def upload_session(job_id: str, request: Request, data: UploadRequest):
     auth_check(request)
     meta = load_json(meta_path(job_id))
-    if data.kind not in {"audio", "pdf", "txt", "questions"}:
+    if data.kind not in {"audio", "pdf", "txt", "questions", "transcript"}:
         raise HTTPException(400, "지원하지 않는 업로드 종류입니다.")
     if data.size <= 0 or data.size > 1024 * 1024 * 1024:
         raise HTTPException(400, "1GB 이하의 파일을 업로드하세요.")
@@ -778,6 +791,7 @@ def upload_session(job_id: str, request: Request, data: UploadRequest):
     allowed = {
         "audio": {".m4a", ".mp3", ".wav", ".flac", ".mp4", ".aac", ".ogg"},
         "pdf": {".pdf"}, "txt": {".txt"}, "questions": {".pdf"},
+        "transcript": {".json", ".srt", ".vtt", ".txt"},
     }
     if extension not in allowed[data.kind]:
         raise HTTPException(400, f"{data.kind} 파일 형식을 확인하세요.")
@@ -799,14 +813,14 @@ def ready(job_id: str, request: Request, data: Ready):
     auth_check(request)
     meta = load_json(meta_path(job_id))
     for kind, key in data.files.items():
-        if kind not in {"audio", "pdf", "txt", "questions"}:
+        if kind not in {"audio", "pdf", "txt", "questions", "transcript"}:
             raise HTTPException(400, "유효하지 않은 종류")
         if not key.startswith(f"jobs/{job_id}/source/{kind}"):
             raise HTTPException(400, "잘못된 파일 경로")
         if not object_blob(key).exists():
             raise HTTPException(400, f"{kind} 파일이 아직 업로드되지 않았습니다.")
-    if not ("audio" in data.files or "txt" in data.files):
-        raise HTTPException(400, "오디오 또는 TXT 전사문을 올려주세요.")
+    if not ({"audio", "txt", "transcript"} & set(data.files)):
+        raise HTTPException(400, "녹음, 클로바 TXT 또는 모바일 Whisper 전사문을 올려주세요.")
     meta["files"] = data.files
     meta["stage"], meta["updated"] = "ready", now()
     save_json(meta_path(job_id), meta)
