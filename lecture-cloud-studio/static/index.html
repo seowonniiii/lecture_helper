@@ -56,7 +56,7 @@ footer{font-size:11px;color:var(--muted);margin-top:28px;line-height:1.65}
  </div>
 </section>
 <section id="workView" class="hidden">
- <div class="workhead"><div><h2 id="workTitle">강의</h2><div class="small" id="workMeta">원본 보존 · 페이지별 학습</div></div><div class="row"><button class="btn smallbtn" onclick="downloadTranscript('raw')">원문 TXT ↓</button><button class="btn smallbtn primary" onclick="downloadTranscript('markdown')">교정 전사문 ↓</button><button class="btn smallbtn" onclick="deleteCurrent()">삭제</button></div></div>
+ <div class="workhead"><div><h2 id="workTitle">강의</h2><div class="small" id="workMeta">원본 보존 · 페이지별 학습</div></div><div class="row"><button class="btn smallbtn primary" id="repairBtn" onclick="repairAI()">✦ AI 교정·PDF 매칭 다시 실행 (녹음 재인식 안 함)</button><button class="btn smallbtn" onclick="downloadTranscript('raw')">원문 TXT ↓</button><button class="btn smallbtn" onclick="downloadTranscript('markdown')">교정 전사문 ↓</button><button class="btn smallbtn" onclick="deleteCurrent()">삭제</button></div></div>
  <div id="workProgress" class="card progress hidden"><strong id="progressTitle">처리 중</strong><div class="progressbar"><span></span></div><div class="steps" id="progressLogs"></div></div>
  <div id="resultArea" class="hidden">
   <div class="kpis" id="kpis"></div>
@@ -103,7 +103,46 @@ async function refreshJobs(){try{jobList=await api("/api/jobs");$("lectureCount"
 function uploadGCS(session,file,label){return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open("PUT",session.upload_url);xhr.setRequestHeader("Content-Type",session.content_type);xhr.setRequestHeader("Content-Range","bytes 0-"+(file.size-1)+"/"+file.size);xhr.upload.onprogress=e=>{if(e.lengthComputable){$("progressTitle").textContent=label+" 업로드 "+Math.round(e.loaded/e.total*100)+"%"}};xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(Error("스토리지 업로드 오류 ("+xhr.status+"). CORS 설정을 확인하세요."));xhr.onerror=()=>reject(Error("스토리지 연결에 실패했습니다. 버킷 CORS와 인터넷 연결을 확인하세요."));xhr.send(file)})}
 async function startUpload(){const audio=$("audioInput").files[0],pdf=$("pdfInput").files[0],txt=$("txtInput").files[0],questions=$("questionsInput").files[0];if(!audio&&!txt){flash("녹음 또는 클로바 TXT 파일을 넣어주세요.");return}const btn=$("startBtn");btn.disabled=true;try{let title=$("lectureTitle").value.trim()||audio?.name||txt?.name||"새 강의";let job=await api("/api/jobs",{method:"POST",body:{title}});currentId=job.id;$("uploadView").classList.add("hidden");$("workView").classList.remove("hidden");$("workTitle").textContent=title;$("workMeta").textContent="업로드 중";$("resultArea").classList.add("hidden");$("workProgress").classList.remove("hidden");$("progressLogs").textContent="";const files={};for(const [kind,file] of [["audio",audio],["pdf",pdf],["txt",txt],["questions",questions]]){if(!file)continue;logProgress(kind.toUpperCase()+" 파일 준비");let session=await api("/api/jobs/"+job.id+"/upload-session",{method:"POST",body:{kind,filename:file.name,content_type:file.type||"application/octet-stream",size:file.size}});await uploadGCS(session,file,kind.toUpperCase());files[kind]=session.object;logProgress(kind.toUpperCase()+" 업로드 완료")}await api("/api/jobs/"+job.id+"/ready",{method:"POST",body:{files}});await refreshJobs();runJob(job.id)}catch(e){flash(e.message);logProgress("오류: "+e.message)}finally{btn.disabled=false}}
 function logProgress(s){let el=$("progressLogs");el.textContent+="• "+s+"\n";el.scrollTop=el.scrollHeight}
-function runJob(id){if(runStream)runStream.close();$("workProgress").classList.remove("hidden");$("progressTitle").textContent="Google Cloud에서 처리 중";runStream=new EventSource("/api/jobs/"+id+"/run");runStream.addEventListener("progress",e=>{let d=JSON.parse(e.data);logProgress(d.message)});runStream.addEventListener("done",async()=>{runStream.close();runStream=null;logProgress("완료!");$("workProgress").classList.add("hidden");await openJob(id);await refreshJobs()});runStream.addEventListener("failure",async e=>{let d=JSON.parse(e.data);runStream.close();runStream=null;logProgress("오류: "+d.message);$("progressTitle").textContent="처리 실패 · 재시도 가능";await refreshJobs()});runStream.onerror=()=>{logProgress("진행 상황 연결이 끊겼습니다. 강의 목록에서 상태를 확인하고 재시도하세요.");runStream.close();runStream=null}}
+function repairAI(){
+  if(!currentId)return;
+  if(!confirm("저장된 음성인식 결과만 사용해 Gemini 교정과 PDF 페이지 매칭을 재실행할까요? 오디오 재전사 비용은 발생하지 않습니다."))return;
+  $("progressLogs").textContent="";
+  $("workEmpty").classList.add("hidden");
+  runJob(currentId,"repair");
+}
+function runJob(id,mode="all"){
+  if(runStream)runStream.close();
+  const button=$("repairBtn");
+  if(button)button.disabled=true;
+  $("workProgress").classList.remove("hidden");
+  $("progressTitle").textContent=mode==="repair"?"AI 교정·페이지 매칭 복구 중 (음성 재인식 없음)":"Google Cloud에서 처리 중";
+  runStream=new EventSource("/api/jobs/"+id+"/run?mode="+mode);
+  runStream.addEventListener("progress",e=>{
+    let d=JSON.parse(e.data);logProgress(d.message)
+  });
+  runStream.addEventListener("done",async()=>{
+    runStream.close();runStream=null;
+    if(button)button.disabled=false;
+    logProgress("AI 교정·매칭 완료");
+    $("workProgress").classList.add("hidden");
+    await openJob(id);
+    await refreshJobs()
+  });
+  runStream.addEventListener("failure",async e=>{
+    let d=JSON.parse(e.data);
+    runStream.close();runStream=null;
+    if(button)button.disabled=false;
+    logProgress("실패 원인: "+d.message);
+    $("progressTitle").textContent="실패 원인 확인됨 · 원문과 기존 결과는 그대로 보존";
+    flash("AI 오류: "+d.message);
+    await refreshJobs()
+  });
+  runStream.onerror=()=>{
+    logProgress("진행 상황 연결이 끊겼습니다. 강의 목록에서 확인하고 AI 복구를 다시 실행할 수 있습니다.");
+    runStream.close();runStream=null;
+    if(button)button.disabled=false;
+  }
+}
 async function openJob(id){currentId=id;$("uploadView").classList.add("hidden");$("workView").classList.remove("hidden");try{let data=await api("/api/jobs/"+id);currentData=data;$("workTitle").textContent=data.meta.title;$("workMeta").textContent=(data.meta.created||"").slice(0,10)+" · "+data.meta.stage;if(data.result){$("workProgress").classList.add("hidden");$("workEmpty").classList.add("hidden");$("resultArea").classList.remove("hidden");currentPage=1;renderResult()}else{$("resultArea").classList.add("hidden");$("workEmpty").classList.remove("hidden");if(data.meta.stage==="ready"||data.meta.stage==="failed"){$("workEmpty").innerHTML='<p>처리가 끝나지 않았어요.</p><button class="btn primary" onclick="runJob(currentId)">처리 / 재시도</button>'}else $("workEmpty").textContent="이 강의에는 아직 결과가 없습니다."}await refreshJobs()}catch(e){flash(e.message)}}
 function renderResult(){const r=currentData.result;const v=r.verification;const k=[["원본 문단",v.input_blocks],["교정 문단",v.output_blocks],["PDF 매칭",v.matched_blocks],["매칭 미확정",v.unmatched_blocks],["검토 필요",v.flagged_blocks]];$("kpis").innerHTML=k.map(x=>'<div class="kpi"><strong>'+safe(x[1])+'</strong>'+safe(x[0])+'</div>').join("");$("pageTotal").textContent="/ "+r.pages.length;$("pageNo").max=r.pages.length||1;goToPage(1);renderBlocks();renderNotes();renderQuiz();renderVerification();switchTab("transcript")}
 function goToPage(n){const max=currentData?.result?.pages.length||1;currentPage=Math.max(1,Math.min(max,Number(n)||1));$("pageNo").value=currentPage;if(currentId&&currentData?.meta?.files?.pdf){let src="/api/jobs/"+currentId+"/pdf#page="+currentPage;if($("pdfFrame").dataset.src!==src){$("pdfFrame").src=src;$("pdfFrame").dataset.src=src}}else $("pdfFrame").src="about:blank"}
