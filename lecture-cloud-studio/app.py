@@ -12,6 +12,7 @@ import hmac
 import json
 import os
 import queue
+import random
 import re
 import secrets
 import subprocess
@@ -26,6 +27,7 @@ import fitz
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from google.api_core.client_options import ClientOptions
+from google.api_core import exceptions as google_errors
 from google.cloud import storage
 from google.cloud.speech_v2 import SpeechClient
 from google.cloud.speech_v2.types import cloud_speech
@@ -109,19 +111,40 @@ def gclient():
     return genai.Client(vertexai=True, project=PROJECT, location=GEMINI_REGION)
 
 
+def is_429(exc: Exception) -> bool:
+    """Both Google API clients may raise ResourceExhausted or equivalent errors."""
+    if isinstance(exc, google_errors.ResourceExhausted):
+        return True
+    code = getattr(exc, "code", None)
+    return ("429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc).upper()
+            or code == 429)
+
+
 def gemini_json(prompt: str) -> dict:
-    res = gclient().models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.1,
-            response_mime_type="application/json",
-            max_output_tokens=8192,
-        ),
-    )
-    if not res.text:
-        raise RuntimeError("Gemini가 빈 결과를 반환했습니다.")
-    return json.loads(res.text)
+    for attempt in range(4):
+        try:
+            res = gclient().models.generate_content(
+                model=GEMINI_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.1,
+                    response_mime_type="application/json",
+                    max_output_tokens=8192,
+                ),
+            )
+            if not res.text:
+                raise RuntimeError("Gemini가 빈 결과를 반환했습니다.")
+            return json.loads(res.text)
+        except Exception as exc:
+            if not is_429(exc):
+                raise
+            if attempt == 3:
+                raise RuntimeError(
+                    "Vertex AI Gemini 429: 프로젝트의 모델 처리량이 부족하거나 "
+                    "할당량이 제한되어 있습니다. 잠시 후 다시 실행하거나 "
+                    "Vertex AI 모델 할당량을 확인하세요."
+                ) from exc
+            time.sleep([8, 20, 45][attempt] + random.random() * 3)
 
 
 def split_text_preserving(text: str, max_chars: int = 650) -> list[str]:
@@ -195,7 +218,7 @@ def secs(value) -> float:
     ) / 1e9
 
 
-def transcribe_chunk(job_id: str, chunk: dict) -> dict:
+def transcribe_chunk(job_id: str, chunk: dict, preferred_region: str, emit) -> dict:
     number = chunk["number"]
     saved = job_path(job_id, f"cache/stt_{number:03}.json")
     blob = object_blob(saved)
@@ -206,24 +229,63 @@ def transcribe_chunk(job_id: str, chunk: dict) -> dict:
     if not gcs_blob.exists():
         gcs_blob.upload_from_filename(str(chunk["path"]), content_type="audio/flac")
     uri = f"gs://{BUCKET}/{gcs_key}"
-    client = SpeechClient(client_options=ClientOptions(
-        api_endpoint=f"{SPEECH_REGION}-speech.googleapis.com"
-    ))
     config = cloud_speech.RecognitionConfig(
         auto_decoding_config=cloud_speech.AutoDetectDecodingConfig(),
         language_codes=["ko-KR"],
         model=SPEECH_MODEL,
     )
-    req = cloud_speech.BatchRecognizeRequest(
-        recognizer=f"projects/{PROJECT}/locations/{SPEECH_REGION}/recognizers/_",
-        config=config,
-        files=[cloud_speech.BatchRecognizeFileMetadata(uri=uri)],
-        recognition_output_config=cloud_speech.RecognitionOutputConfig(
-            inline_response_config=cloud_speech.InlineOutputConfig()
-        ),
-    )
-    operation = client.batch_recognize(request=req)
-    response = operation.result(timeout=1800)
+    # Google has sometimes returned 429 immediately for Chirp 3 in the 'us'
+    # multi-region even when the project has unused quota. Retry, then test
+    # the other official Chirp 3 multi-region. This choice affects where
+    # audio is processed; users can disable it via env var.
+    regions = [preferred_region]
+    if os.getenv("SPEECH_ALLOW_REGION_FALLBACK", "true").lower() == "true":
+        alternative = {"us": "eu", "eu": "us"}.get(preferred_region)
+        if alternative:
+            regions.append(alternative)
+    response = None
+    used_region = preferred_region
+    quota_errors = []
+    for region in regions:
+        client = SpeechClient(client_options=ClientOptions(
+            api_endpoint=f"{region}-speech.googleapis.com"
+        ))
+        req = cloud_speech.BatchRecognizeRequest(
+            recognizer=f"projects/{PROJECT}/locations/{region}/recognizers/_",
+            config=config,
+            files=[cloud_speech.BatchRecognizeFileMetadata(uri=uri)],
+            recognition_output_config=cloud_speech.RecognitionOutputConfig(
+                inline_response_config=cloud_speech.InlineOutputConfig()
+            ),
+        )
+        for attempt in range(2):
+            try:
+                # If an LRO has already been started, do not launch another
+                # until its result completes or definitively fails.
+                operation = client.batch_recognize(request=req)
+                response = operation.result(timeout=1800)
+                used_region = region
+                break
+            except Exception as exc:
+                if not is_429(exc):
+                    raise RuntimeError(
+                        f"Speech-to-Text ({region}) {type(exc).__name__}: {exc}"
+                    ) from exc
+                quota_errors.append(f"{region}: {str(exc)[:180]}")
+                if attempt == 0:
+                    emit(f"Speech-to-Text ({region}) 429 제한: 자동 재시도 중")
+                    time.sleep(8 + random.random() * 3)
+        if response is not None:
+            break
+        if region != regions[-1]:
+            emit(f"{region} 음성인식 리전에서 429 발생: 다른 지원 리전으로 자동 전환")
+    if response is None:
+        raise RuntimeError(
+            "Speech-to-Text Chirp 3 429: "
+            + " / ".join(quota_errors)
+            + ". 두 리전에서도 제한이 발생했습니다. "
+              "Google Cloud Speech-to-Text 할당량/지역별 가용량을 확인해야 합니다."
+        )
     entry = response.results.get(uri)
     if entry is None or not entry.transcript.results:
         raise RuntimeError(f"{number+1}번 음성 구간에서 전사 결과가 반환되지 않았습니다.")
@@ -248,7 +310,7 @@ def transcribe_chunk(job_id: str, chunk: dict) -> dict:
             cursor = part_end
         prev_end = segment_end
     result = {"number": number, "start": chunk["start"], "end": chunk["end"],
-              "segments": segments}
+              "segments": segments, "region": used_region}
     if not segments:
         raise RuntimeError(f"{number+1}번 구간의 전사문이 비어 있습니다.")
     save_json(saved, result)
@@ -351,6 +413,8 @@ def correct_blocks(blocks: list[dict], pages: list[dict], emit):
                 break
             except Exception as exc:
                 error = str(exc)
+        if items is None and error and ("429" in error or "Vertex AI Gemini" in error):
+            raise RuntimeError("Gemini 교정 429: " + error[:400])
         for block in batch:
             if items is None:
                 block["flags"].append("AI 교정 실패: 원문 유지 / " + str(error)[:120])
@@ -478,11 +542,14 @@ def pipeline(job_id: str, emit):
             length, chunks = make_chunks(local["audio"], folder)
             emit(f"{length/60:.1f}분 오디오를 {len(chunks)}개 구간(각 18분 이하)으로 자동 분할")
             outputs = []
-            # One by one avoids project quota bursts; each chunk is safely resumable.
+            region = SPEECH_REGION
+            # Completed audio chunks are cached and never re-billed on retry.
             for i, chunk in enumerate(chunks):
-                emit(f"음성인식 {i+1}/{len(chunks)} 구간 처리 중")
-                outputs.append(transcribe_chunk(job_id, chunk))
-                emit(f"음성인식 {i+1}/{len(chunks)} 구간 완료")
+                emit(f"음성인식 {i+1}/{len(chunks)} 구간 처리 중 ({region})")
+                part = transcribe_chunk(job_id, chunk, region, emit)
+                outputs.append(part)
+                region = part.get("region", region)
+                emit(f"음성인식 {i+1}/{len(chunks)} 구간 완료 ({region})")
             blocks = get_audio_blocks(outputs)
             source_type = "chirp_3"
         else:
