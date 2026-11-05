@@ -1,7 +1,23 @@
-# GitHub main branch -> Cloud Build -> Cloud Run
-# Push to the Artifact Registry repository provisioned by prior Cloud Run source deployments.
-# Uses --image (not --source), so existing Cloud Run env vars and secrets are retained.
+# GitHub main push -> Cloud Build -> Artifact Registry -> existing Cloud Run service.
+# The Cloud Build service account needs Artifact Registry create/write, Cloud Run admin,
+# and iam.serviceAccountUser on the Cloud Run runtime service account.
+# No --source rebuild: keep existing secrets, storage bucket and Cloudflare configuration.
 steps:
+  # Source-deploy normally provisions this repo, but older projects might not have it.
+  # Create it explicitly if missing (gcr.io create-on-push is not used).
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -euc
+      - |
+        if ! gcloud artifacts repositories describe cloud-run-source-deploy --location=asia-northeast1 --project="$PROJECT_ID" >/dev/null 2>&1; then
+          echo "Artifact Registry Docker repository is missing; creating it..."
+          gcloud artifacts repositories create cloud-run-source-deploy --repository-format=docker --location=asia-northeast1 --project="$PROJECT_ID" --description="Lecture Cloud Studio deployment images" || {
+            echo "ERROR: Cannot create Artifact Registry repository. Grant the Cloud Build service account Artifact Registry Admin (or create this repository as project owner)."
+            exit 1
+          }
+        fi
+        echo "Artifact Registry repository ready."
   - name: gcr.io/cloud-builders/docker
     dir: lecture-cloud-studio
     args: ["build", "-t", "asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/lecture-cloud-studio:$COMMIT_SHA", "."]
@@ -16,6 +32,8 @@ steps:
       - "--image=asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/lecture-cloud-studio:$COMMIT_SHA"
       - "--region=asia-northeast1"
       - "--project=$PROJECT_ID"
+      - "--update-env-vars=GEMINI_MODEL=gemini-3.8-flash"
+      - "--timeout=3600"
       - "--quiet"
 images:
   - "asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/lecture-cloud-studio:$COMMIT_SHA"
