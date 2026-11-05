@@ -43,7 +43,7 @@ BUCKET = os.getenv("GCS_BUCKET", "")
 SPEECH_REGION = os.getenv("SPEECH_REGION", "us")
 SPEECH_MODEL = os.getenv("SPEECH_MODEL", "chirp_3")
 GEMINI_REGION = os.getenv("GEMINI_REGION", "global")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 APP_PASSWORD = os.getenv("APP_PASSWORD", "")
 SECRET = os.getenv("SESSION_SECRET", "")
 CHUNK_SECONDS = 18 * 60
@@ -132,8 +132,7 @@ def gemini_json(prompt: str) -> dict:
                     model=GEMINI_MODEL,
                     contents=prompt,
                     config=types.GenerateContentConfig(
-                        temperature=0.1,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        thinking_config=types.ThinkingConfig(thinking_level="MEDIUM"),
                         response_mime_type="application/json",
                         max_output_tokens=8192,
                     ),
