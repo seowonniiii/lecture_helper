@@ -80,7 +80,7 @@
       <label><input type="radio" name="mode" value="split" checked><span>페이지 구분 + 용어 교정</span></label>
       <label><input type="radio" name="mode" value="fix"><span>이미 구분됨 → 용어 교정만</span></label>
     </div>
-    <label class="check"><input type="checkbox" id="filler" checked>추임새(어, 음, 그…) 정리하기</label>
+    <label class="check"><input type="checkbox" id="filler">추임새(어, 음, 그…) 정리하기</label>
     <details style="margin-top:12px">
       <summary>고급 설정</summary>
       <div class="row">
@@ -275,7 +275,7 @@ async function generate(key, model, system, parts){
   const body = {
     system_instruction:{parts:[{text: system}]},
     contents:[{role:"user", parts}],
-    generationConfig:{temperature:0.2, maxOutputTokens:65536}
+    generationConfig:{temperature:0.2, maxOutputTokens:65536, responseMimeType:"application/json"}
   };
   for(let attempt=1; attempt<=4; attempt++){
     const r = await fetch(`${API}/v1beta/${model}:generateContent?key=${encodeURIComponent(key)}`, {
@@ -306,18 +306,50 @@ function systemPrompt(mode, fmt, filler){
 - 절대 요약·삭제·재구성하지 않는다. 교수가 한 말은 전부, 원래 순서대로 남긴다. 문장을 더 매끄럽게 다시 쓰지 않는다. 띄어쓰기와 명백한 오타만 바로잡는다.
 - 교수가 "시험에 낸다", "중요하다", "꼭 외워라"처럼 말한 부분도 그대로 둔다(표시를 추가하지 않는다).
 ${filler ? "- 의미 없는 추임새(어, 음, 그, 이제, 뭐 등이 단독으로 반복되는 것)와 말 더듬어 반복된 단어는 정리한다. 의미 있는 말은 지우지 않는다." : "- 추임새도 그대로 남긴다."}
-- 결과 텍스트만 출력한다. 머리말, 설명, 요약, 코드블록(\`\`\`)을 쓰지 않는다.`;
+- 입력은 id와 text를 가진 JSON 배열이다. 동일한 id를 같은 순서로 한 번씩 포함한 JSON 배열을 출력한다. 교정한 내용과 페이지 표시를 해당 id의 text에만 넣고 다른 id로 옮기지 않는다. 머리말, 설명, 요약, 코드블록은 쓰지 않는다.`;
   if(mode === "split") return `너는 한국 의과대학 강의 전사문 편집자다. 강의록 PDF와 클로바노트 전사문 일부를 받는다.
 
 할 일:
 - 전사문을 강의록 슬라이드 페이지에 맞춰 나눈다. PDF의 페이지 번호(첫 장 = 1)를 기준으로, 각 페이지가 시작되는 곳에 "${m}" 형식의 줄을 단독으로 넣는다 (예: ${fmt.replace("{n}","3")}).
 - 교수가 앞 페이지로 돌아가 설명하면 그 페이지 표시를 다시 넣는다. 여러 장을 한꺼번에 설명하면 ${fmt.replace("{n}","8~9")} 처럼 쓴다.
-- 슬라이드와 관계없는 부분(수업 전 공지, 출석, 질의응답 등)은 "추가" 줄을 단독으로 넣고 그 아래에 둔다.
+- 슬라이드와 관계없는 부분(수업 전 공지, 출석, 질의응답 등)은 "추가" 줄을 단독으로 넣고 그 아래에 둔다. 연결할 페이지의 근거가 부족하면 "미매칭" 줄을 넣는다.
 - 페이지 표시 줄 아래에는 해당 내용을 자연스러운 문단으로 나눠 쓴다.${common}`;
   return `너는 한국 의과대학 강의 전사문 편집자다. 이미 페이지가 구분된 전사문 일부를 받는다 (강의록 PDF가 함께 올 수 있다).
 
 할 일:
 - 페이지 구분은 원래 그대로 유지한다. 페이지를 새로 나누거나 옮기지 않는다. 다만 페이지 표시 줄은 "${m}" 형식으로 통일해 단독 줄로 쓴다 (예: "슬라이드 12." → ${fmt.replace("{n}","12")}, "8~9p." → ${fmt.replace("{n}","8~9")}). "추가 슬라이드" 같은 표시는 "추가"로 쓴다.${common}`;
+}
+
+/* ---------- 응답 검증 ---------- */
+function transcriptUnits(chunk, chunkNumber){
+  return chunk.split(/\r?\n/).filter(line => line.trim()).map((text, index) => ({
+    id: "T" + chunkNumber + "-" + (index + 1), text
+  }));
+}
+
+function validateCorrection(units, response, fmt, mode){
+  if(response.finish !== "STOP") throw new Error("응답이 끝까지 출력되지 않았어요.");
+  const output = JSON.parse(response.text);
+  if(!Array.isArray(output) || output.length !== units.length){
+    throw new Error("원문과 응답의 줄 수가 달라요.");
+  }
+  const markers = markerRegex(fmt);
+  return units.map((unit, index) => {
+    const corrected = output[index];
+    if(corrected?.id !== unit.id || typeof corrected.text !== "string" || !corrected.text.trim()){
+      throw new Error("원문 ID가 빠졌거나 순서가 달라요.");
+    }
+    const body = corrected.text.replace(markers, "").replace(/^[ \t]*(?:추가|미매칭)[ \t]*$/gm, "").replace(/\s/g, "");
+    anyMarker.lastIndex = 0;
+    if(mode === "fix" && anyMarker.test(unit.text) && !body && [...corrected.text.matchAll(markers)].length === 1){
+      return {...corrected, review: false};
+    }
+    const original = unit.text.replace(/\s/g, "");
+    if(!body || body.length < original.length * 0.6){
+      return {...unit, review: true};
+    }
+    return {...corrected, review: false};
+  });
 }
 
 /* ---------- 실행 ---------- */
@@ -360,18 +392,48 @@ $("run").onclick = async () => {
       }
       const parts = [];
       if(slidePart) parts.push(slidePart);
-      parts.push({text: `${ctx}\n\n=== 전사문 조각 ===\n${chunks[i]}`});
-      const {text: out, finish} = await generate(key, model, sys, parts);
-      let piece = out.replace(/^```[a-z]*\n?/i,"").replace(/\n?```\s*$/,"").trim();
-      if(finish && finish !== "STOP"){ warn.push(i+1); log(`  ! ${i+1}번째 조각이 끝까지 출력되지 않았을 수 있어요 (${finish})`); }
-      const ratio = piece.length / chunks[i].length;
-      if(ratio < 0.6) { warn.push(i+1); log(`  ! ${i+1}번째 조각 결과가 원문의 ${Math.round(ratio*100)}%뿐이에요 — 요약됐을 수 있어요`); }
+      const units = transcriptUnits(chunks[i], i+1);
+      parts.push({text: ctx + "\n\n=== 전사문 조각(JSON) ===\n" + JSON.stringify(units)});
+      const response = await generate(key, model, sys, parts);
+      let piece;
+      try{
+        const corrected = validateCorrection(units, response, fmt, mode);
+        const review = corrected.filter(unit => unit.review);
+        if(review.length){
+          warn.push(i+1);
+          log("  ! 응답이 짧은 줄은 원문 유지: " + review.map(unit => unit.id).join(", "));
+          if(mode === "split") lastMarker = null;
+        }
+        let needsPage = false;
+        let unitIndex = 0;
+        piece = chunks[i].split(/\r?\n/).map(line => {
+          if(!line.trim()) return line;
+          const unit = corrected[unitIndex++];
+          if(mode !== "split") return unit.text;
+          if(unit.review){
+            const prefix = needsPage ? "" : "미매칭\n";
+            needsPage = true;
+            return prefix + unit.text;
+          }
+          const hasPage = [...unit.text.matchAll(mre)].length > 0 || /^(추가|미매칭)\s*$/m.test(unit.text);
+          if(hasPage) needsPage = false;
+          return unit.text;
+        }).join("\n").trim();
+        if(needsPage) lastMarker = null;
+      }catch(error){
+        warn.push(i+1);
+        log("  ! 응답 검증 실패. 조각 원문 유지: " + error.message);
+        piece = (mode === "split" ? "미매칭\n" : "") + chunks[i].trimEnd();
+        if(mode === "split") lastMarker = null;
+      }
       // 직전과 같은 페이지 표시로 시작하면 중복 제거
       const firstLine = piece.split("\n")[0].trim();
-      if(lastMarker && firstLine === lastMarker) piece = piece.split("\n").slice(1).join("\n").trim();
+      if(mode === "split" && lastMarker && firstLine === lastMarker) piece = piece.split("\n").slice(1).join("\n").trim();
       result += (result ? "\n\n" : "") + piece;
-      const ms = [...result.matchAll(mre)];
-      if(ms.length) lastMarker = ms[ms.length-1][0].trim();
+      for(const line of piece.split("\n")){
+        if(line.trim() === "미매칭" || line.trim() === "추가") lastMarker = line.trim();
+        else if([...line.matchAll(mre)].length) lastMarker = line.trim();
+      }
       $("out").value = result;
       log(`  ✓ 완료 (${piece.length.toLocaleString()}자)`);
     }
